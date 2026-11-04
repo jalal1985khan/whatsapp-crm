@@ -6,7 +6,7 @@ import pg from "pg";
 
 const { Pool } = pg;
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-for (const envFile of [".env.local", ".env"]) {
+for (const envFile of [".env.production.local", ".env.production", ".env.local", ".env"]) {
   try { process.loadEnvFile(path.join(projectRoot, envFile)); }
   catch (error) { if (error?.code !== "ENOENT") throw error; }
 }
