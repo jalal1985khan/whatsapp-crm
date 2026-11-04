@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Deployment script for DigitalOcean Droplet
-# Run this from the project root (/var/www/whatsapp-crm)
+# Run this from the project root (/var/www/html/crm/whatsapp-crm)
+cd "/var/www/html/crm/whatsapp-crm"
 
 echo "========================================"
 echo " Starting WhatsApp CRM Droplet Deployment"
@@ -41,3 +42,4 @@ echo " Deployment completed successfully!"
 echo " Status: pm2 status"
 echo " Logs:   pm2 logs whatsapp-crm"
 echo "========================================"
+
