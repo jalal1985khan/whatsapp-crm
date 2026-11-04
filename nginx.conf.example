@@ -3,7 +3,7 @@
 
 # Upstream Next.js Node server
 upstream nextjs_upstream {
-    server 127.0.0.1:3000;
+    server 127.0.0.1:4000;
     keepalive 64;
 }
 
@@ -85,3 +85,4 @@ server {
         proxy_busy_buffers_size 256k;
     }
 }
+
