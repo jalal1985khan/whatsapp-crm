@@ -7,14 +7,11 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   Check,
   CircleAlert,
   Copy,
   Key,
-  LogOut,
-  MessageCircle,
   Pause,
   Pencil,
   Phone,
@@ -368,67 +365,20 @@ export function NumberAdmin({
     }
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
-
   return (
-    <main className="min-h-screen bg-[#f7f8f6]">
-      <header className="flex h-16 items-center justify-between border-b bg-white px-5 md:px-10">
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-white">
-            <MessageCircle className="size-4" />
-          </div>
-          <span className="text-sm font-semibold">
-            Relay CRM <span className="font-normal text-muted-foreground">/ WhatsApp & Twilio Numbers</span>
-          </span>
+    <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">WhatsApp Senders & Twilio Accounts</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Configure multiple WhatsApp numbers across your Twilio and Meta accounts.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Link href="/admin/routing" className="text-sm text-muted-foreground hover:text-foreground">
-            Routing
-          </Link>
-          <Link href="/admin/team" className="text-sm text-muted-foreground hover:text-foreground">
-            Team
-          </Link>
-          <Link href="/admin/replies" className="text-sm text-muted-foreground hover:text-foreground">
-            Saved replies
-          </Link>
-          <Link href="/admin/audit" className="text-sm text-muted-foreground hover:text-foreground">
-            Audit history
-          </Link>
-          <Link href="/account/security" className="text-sm text-muted-foreground hover:text-foreground">
-            Security
-          </Link>
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-            Open inbox
-          </Link>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            <LogOut data-icon="inline-start" />
-            Sign out
-          </Button>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-        <Link href="/" className="mb-5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-3.5" />
-          Back to inbox
-        </Link>
-
-        <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">WhatsApp Senders</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure multiple WhatsApp numbers across your Twilio and Meta accounts.
-            </p>
-          </div>
-          <Badge variant="success" className="gap-1.5 py-1 px-3">
-            <Wifi className="size-3.5" />
-            Twilio Ready · Multi-Account
-          </Badge>
-        </div>
+        <Badge variant="success" className="gap-1.5 py-1 px-3">
+          <Wifi className="size-3.5" />
+          Twilio Ready · Multi-Account
+        </Badge>
+      </div>
 
         {notice && (
           <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
@@ -904,7 +854,6 @@ export function NumberAdmin({
             </div>
           )}
         </section>
-      </div>
-    </main>
+    </div>
   );
 }

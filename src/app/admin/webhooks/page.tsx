@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { getPostgresPool, getWorkspaceId } from "@/lib/postgres-pool";
 import { WebhookHealth } from "@/components/webhook-health";
@@ -29,8 +27,13 @@ export default async function WebhookHealthPage() {
     } catch (error) { setupError = error instanceof Error ? error.message : "Could not load webhook health."; }
   }
 
-  return <main className="min-h-screen bg-[#f7f8f6]">
-    <header className="flex h-16 items-center justify-between border-b bg-white px-5 md:px-10"><div className="text-sm font-semibold">Relay CRM <span className="font-normal text-muted-foreground">/ Admin</span></div><nav className="flex gap-4 text-sm text-muted-foreground"><Link href="/admin/numbers" className="hover:text-foreground">Numbers</Link><Link href="/admin/templates" className="hover:text-foreground">Templates</Link><Link href="/admin/alerts" className="hover:text-foreground">Alerts</Link><Link href="/admin/privacy" className="hover:text-foreground">Privacy</Link><Link href="/" className="hover:text-foreground">Inbox</Link></nav></header>
-    <div className="mx-auto max-w-5xl px-5 py-8 md:px-8"><Link href="/admin/numbers" className="mb-5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" />Back to channels</Link><div className="mb-6"><h1 className="text-2xl font-semibold tracking-tight">Webhook health</h1><p className="mt-1 text-sm text-muted-foreground">Inspect persisted Meta events and retry recoverable events without duplicating inbound messages.</p></div><WebhookHealth initialCounts={counts} initialLatestFailed={latestFailed} setupError={setupError} /></div>
-  </main>;
+  return (
+    <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Webhook health</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Inspect persisted events and retry recoverable webhooks without duplicating messages.</p>
+      </div>
+      <WebhookHealth initialCounts={counts} initialLatestFailed={latestFailed} setupError={setupError} />
+    </div>
+  );
 }

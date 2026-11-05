@@ -3,8 +3,7 @@
 import { SelectControl } from "@/components/ui/select-control";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -50,10 +49,8 @@ export function TemplateAdmin({ initialTemplates, wabas, metaConfigured }: { ini
     finally { setBusy(false); }
   }
 
-  return <main className="min-h-screen bg-[#f7f8f6]">
-    <header className="flex h-16 items-center justify-between border-b bg-white px-5 md:px-10"><div className="text-sm font-semibold">Relay CRM <span className="font-normal text-muted-foreground">/ Admin / Templates</span></div><nav className="flex items-center gap-4"><Link href="/admin/numbers" className="text-sm text-muted-foreground hover:text-foreground">Numbers</Link><Link href="/admin/team" className="text-sm text-muted-foreground hover:text-foreground">Team</Link><Link href="/" className="text-sm text-muted-foreground hover:text-foreground">Inbox</Link></nav></header>
+  return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
-      <Link href="/admin/numbers" className="mb-5 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><ArrowLeft className="size-3.5" />Back to channels</Link>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold tracking-tight">WhatsApp templates</h1><p className="mt-1 text-sm text-muted-foreground">Sync approved templates from your connected WABA before sending.</p></div><Badge variant={metaConfigured ? "success" : "warning"}>{metaConfigured ? "Cloud API configured" : "Meta credentials required"}</Badge></div>
       {(error || notice) && <div role={error ? "alert" : "status"} className={`mb-4 rounded-lg border px-4 py-3 text-sm ${error ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>{error || notice}</div>}
       <section className="rounded-2xl border bg-white shadow-sm">
@@ -68,5 +65,5 @@ export function TemplateAdmin({ initialTemplates, wabas, metaConfigured }: { ini
       </section>
       <p className="mt-4 text-xs leading-relaxed text-muted-foreground">Template status and quality refresh automatically within about 30 seconds when the matching WhatsApp webhook fields are subscribed in Meta. Sync remains available for reconciliation. This first template sender supports approved templates with positional text variables in the body only. Header variables, buttons, media templates, and automatic customer notifications are not sent by this screen.</p>
     </div>
-  </main>;
+  );
 }
