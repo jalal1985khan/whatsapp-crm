@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "db:migrate": "node scripts/migrate-postgres.mjs"
+    "db:migrate": "node scripts/migrate-postgres.mjs",
+    "owner:create": "node scripts/create-owner.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
