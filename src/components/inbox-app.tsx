@@ -7,10 +7,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  Archive, ArrowRightLeft, ArrowUpRight, AtSign, Bell, Check, CheckCheck,
+  Archive, ArrowRightLeft, ArrowUpRight, AtSign, BarChart3, Bell, Check, CheckCheck,
   ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Filter, Inbox,
-  Info, MessageCircle, MoreHorizontal, Paperclip, Plus, Search, Send,
-  Settings2, ShieldCheck, Smile, Sparkles, Users, Wifi, X,
+  Info, Lock, MessageCircle, MessageSquare, MoreHorizontal, MoreVertical, Paperclip, Plus, Search, Send,
+  Settings2, ShieldCheck, Smartphone, Smile, Sparkles, Users, Wifi, X,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -86,30 +86,67 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
   onPurge: (messageId: string) => void;
 }) {
   const messageId = message.id ?? `${chat.id}-${index}`;
-  return <MessageScrollerItem id={message.id ? `crm-message-${message.id}` : undefined} messageId={messageId} scrollAnchor={!message.mine}>
-    <Message align={message.mine ? "end" : "start"}>
-      {!message.mine && <MessageAvatar className="size-7"><Avatar className="size-7"><AvatarFallback className={`${chat.color} text-[9px]`}>{chat.initials}</AvatarFallback></Avatar></MessageAvatar>}
-      <MessageContent className="w-auto max-w-[82%] flex-1 md:max-w-[70%]">
-        <Bubble variant={message.mine ? "tinted" : "outline"} className="max-w-full rounded-2xl shadow-sm">
-          <BubbleContent className="px-4 py-3">
-            {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("image/") && <Image src={message.media.accessUrl} alt={message.media.filename || "WhatsApp image"} width={480} height={360} unoptimized className="mb-2 max-h-72 w-auto max-w-full rounded-lg object-contain" />}
-            {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("video/") && <video controls preload="none" src={message.media.accessUrl} className="mb-2 max-h-72 max-w-full rounded-lg" />}
-            {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("audio/") && <audio controls preload="none" src={message.media.accessUrl} className="mb-2 max-w-full" />}
-            {message.media && <div className="mb-2 flex items-center gap-2 rounded-lg border bg-background/70 px-2.5 py-2"><Paperclip className="size-4 shrink-0" /><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{message.media.filename || `${message.media.type} attachment`}</p><p className="text-[10px] text-muted-foreground">{message.media.mimeType || message.media.type}{message.media.size ? ` · ${(message.media.size / (1024 * 1024)).toFixed(1)} MB` : ""}{message.media.stored ? " · archived securely" : message.media.storageStatus === "DELETED" ? " · file purged" : message.media.storageStatus === "QUARANTINED" ? " · quarantined by malware scan" : message.media.storageStatus === "FAILED" ? " · archive or scan failed; retry pending" : " · archiving or scanning"}</p></div>{message.media.stored && message.media.messageId && message.media.accessUrl && !/^(image|audio|video)\//.test(message.media.mimeType || "") && <a href={message.media.accessUrl} className="shrink-0 text-[10px] font-medium text-primary hover:underline">Download</a>}{canPurge && message.media.stored && message.media.messageId && <Button type="button" className="shrink-0 text-[10px] font-medium text-destructive hover:underline" onClick={() => onPurge(message.media!.messageId!)} variant="ghost">Purge</Button>}</div>}
-            <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{message.media?.caption || message.text}</p>
-          </BubbleContent>
-        </Bubble>
-        <MessageFooter className="mt-1 min-h-4 gap-1.5 px-1 text-[10px]">
-          {message.mine && message.senderNumberId && <span>{senderNumbers.find((number) => number.id === message.senderNumberId)?.label ?? "WhatsApp"} ·</span>}
-          <span>{message.time}</span>
-          {message.mine && ["sent", "delivered", "read"].includes(message.status ?? "") && <span aria-label={message.status === "read" ? "Read" : message.status === "delivered" ? "Delivered" : "Sent"} title={message.status === "read" ? "Read" : message.status === "delivered" ? "Delivered" : "Sent"}><CheckCheck className={`size-3.5 ${message.status === "read" ? "text-sky-600" : "text-slate-500"}`} /></span>}
-          {message.mine && message.status === "failed" && <><span className="font-medium text-destructive" title={message.failureClass ? `Failure class: ${message.failureClass.replaceAll("_", " ").toLowerCase()}` : "WhatsApp rejected this message; cause is unknown and requires review."}>Failed{message.failureClass ? ` · ${message.failureClass.replaceAll("_", " ").toLowerCase()}` : ""}</span>{canRetry && (!message.media || message.media.type === "template") && message.id && message.failureClass !== "UNKNOWN_HOLD" && message.failureClass !== "OUTCOME_UNKNOWN" && <Button type="button" size="sm" variant="ghost" className="h-6 px-1.5 text-[10px]" disabled={sending} onClick={() => onRetry(message.id!)}>Retry</Button>}</>}
-          {message.mine && message.status === "unknown" && <span className="font-medium text-amber-800" title="Check delivery status before retrying">Check status</span>}
-          {message.mine && (message.status === "queued" || message.status === "local") && <span className="text-muted-foreground">{message.status === "local" ? "Local" : "Sending"}</span>}
-        </MessageFooter>
-      </MessageContent>
-    </Message>
-  </MessageScrollerItem>;
+  return (
+    <MessageScrollerItem id={message.id ? `crm-message-${message.id}` : undefined} messageId={messageId} scrollAnchor={!message.mine}>
+      <div className={`flex w-full mb-1.5 ${message.mine ? "justify-end" : "justify-start"}`}>
+        <div
+          className={`relative max-w-[85%] sm:max-w-[72%] md:max-w-[65%] rounded-lg px-3 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] text-[14.2px] ${
+            message.mine
+              ? "rounded-tr-none bg-[#d9fdd3] text-[#111b21]"
+              : "rounded-tl-none bg-[#ffffff] text-[#111b21]"
+          }`}
+        >
+          {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("image/") && (
+            <Image src={message.media.accessUrl} alt={message.media.filename || "WhatsApp image"} width={480} height={360} unoptimized className="mb-1 max-h-72 w-auto max-w-full rounded-md object-contain" />
+          )}
+          {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("video/") && (
+            <video controls preload="none" src={message.media.accessUrl} className="mb-1 max-h-72 max-w-full rounded-md" />
+          )}
+          {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("audio/") && (
+            <audio controls preload="none" src={message.media.accessUrl} className="mb-1 max-w-full" />
+          )}
+          {message.media && !/^(image|audio|video)\//.test(message.media.mimeType || "") && (
+            <div className="mb-1.5 flex items-center gap-2 rounded-md bg-black/5 px-2.5 py-2">
+              <Paperclip className="size-4 shrink-0 text-[#54656f]" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-[#111b21]">{message.media.filename || `${message.media.type} attachment`}</p>
+                <p className="text-[10px] text-[#667781]">{message.media.mimeType || message.media.type}{message.media.size ? ` · ${(message.media.size / (1024 * 1024)).toFixed(1)} MB` : ""}</p>
+              </div>
+              {message.media.stored && message.media.accessUrl && (
+                <a href={message.media.accessUrl} className="shrink-0 text-xs font-semibold text-[#008069] hover:underline">Download</a>
+              )}
+            </div>
+          )}
+          <span className="whitespace-pre-wrap break-words leading-relaxed inline">
+            {message.media?.caption || message.text}
+          </span>
+          <span className="float-right ml-2.5 mt-1 -mb-0.5 inline-flex items-center gap-1 text-[11px] text-[#667781] select-none">
+            {message.mine && message.senderNumberId && (
+              <span className="text-[10px] text-[#008069] font-medium mr-0.5">
+                {senderNumbers.find((number) => number.id === message.senderNumberId)?.label ?? "WhatsApp"}
+              </span>
+            )}
+            <span>{message.time}</span>
+            {message.mine && ["sent", "delivered", "read"].includes(message.status ?? "") && (
+              <CheckCheck className={`size-3.5 ${message.status === "read" ? "text-[#53bdeb]" : "text-[#8696a0]"}`} />
+            )}
+            {message.mine && message.status === "sent" && <Check className="size-3.5 text-[#8696a0]" />}
+            {message.mine && (message.status === "queued" || message.status === "local") && <Clock3 className="size-3 text-[#8696a0]" />}
+            {message.mine && message.status === "failed" && (
+              <span className="text-red-600 font-semibold text-[10px] flex items-center gap-1">
+                Failed
+                {canRetry && message.id && (
+                  <button type="button" onClick={() => onRetry(message.id!)} className="underline hover:text-red-700 ml-0.5">
+                    Retry
+                  </button>
+                )}
+              </span>
+            )}
+          </span>
+        </div>
+      </div>
+    </MessageScrollerItem>
+  );
 }
 
 function eligibleSenders(chat: Chat | undefined, numbers: SenderNumber[]) {
@@ -737,124 +774,1128 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
     router.refresh();
   }
 
-  if (!activeChat) return <main className="flex min-h-screen flex-col bg-[#f7f8f6] text-slate-900">
-    <header className="flex h-[68px] items-center justify-between border-b bg-white px-5"><div className="flex items-center gap-3"><div className="flex size-9 items-center justify-center rounded-xl bg-primary text-white"><MessageCircle className="size-4" /></div><span className="text-sm font-semibold">Relay CRM</span></div><div className="flex items-center gap-2">{adminCanPurgeMedia && <Link href="/admin/numbers"><Button variant="outline" size="sm"><AtSign data-icon="inline-start" />Manage numbers</Button></Link>}<Link href="/customers?new=1"><Button size="sm"><Plus data-icon="inline-start" />Add customer</Button></Link></div></header>
-    <section className="m-auto flex max-w-lg flex-col items-center px-6 py-16 text-center"><div className="flex size-14 items-center justify-center rounded-2xl bg-[#eaf3ed] text-primary"><Inbox className="size-7" /></div><h1 className="mt-5 text-xl font-semibold">Your inbox is ready</h1><p className="mt-2 text-sm leading-relaxed text-muted-foreground">Add a customer or connect an approved sender number to start building your shared conversation history.</p><div className="mt-6 flex flex-wrap justify-center gap-3"><Link href="/customers?new=1"><Button><Plus data-icon="inline-start" />Add customer</Button></Link>{adminCanPurgeMedia && <Link href="/admin/numbers"><Button variant="outline"><AtSign data-icon="inline-start" />Manage numbers ({senderNumbers.length} active)</Button></Link>}</div>{notice && <p role="status" className="mt-5 text-xs text-amber-800">{notice}</p>}</section>
-  </main>;
-
   return (
-    <main className="flex h-screen min-h-[650px] overflow-hidden bg-white text-slate-900">
-      <aside className="hidden w-[72px] shrink-0 flex-col items-center border-r bg-[#fafbfa] py-4 sm:flex">
-        <div className="mb-8 flex size-10 items-center justify-center rounded-xl bg-primary text-white shadow-sm"><MessageCircle className="size-5" /></div>
-        <div className="flex flex-1 flex-col gap-2">
-          <RailLink href="/" active label="Inbox"><Inbox /></RailLink>
-          <RailLink href="/customers" label="Customers"><Users /></RailLink>
-          {adminCanPurgeMedia && <><RailLink href="/admin/numbers" label="Numbers"><AtSign /></RailLink><RailLink href="/reports" label="Reports"><ArrowUpRight /></RailLink></>}
+    <main className="flex h-screen min-h-[600px] overflow-hidden bg-[#efeae2] text-[#111b21] font-sans">
+      {/* 1. Slim Left Rail (WhatsApp Desktop Style) */}
+      <aside className="hidden w-[64px] shrink-0 flex-col items-center justify-between border-r border-[#d1d7db] bg-[#f0f2f5] py-3 sm:flex select-none">
+        <div className="flex flex-col items-center gap-4">
+          <Link href="/" aria-label="WhatsApp CRM" className="flex size-10 items-center justify-center rounded-full bg-[#00a884] text-white shadow-xs">
+            <MessageSquare className="size-5 fill-current" />
+          </Link>
+          <div className="flex flex-col items-center gap-1.5">
+            <RailLink href="/" active label="Chats">
+              <MessageSquare className="size-5" />
+            </RailLink>
+            <RailLink href="/customers" label="Customers">
+              <Users className="size-5" />
+            </RailLink>
+            {adminCanPurgeMedia && (
+              <>
+                <RailLink href="/admin/numbers" label="WhatsApp Numbers">
+                  <Smartphone className="size-5" />
+                </RailLink>
+                <RailLink href="/reports" label="Reports">
+                  <BarChart3 className="size-5" />
+                </RailLink>
+              </>
+            )}
+          </div>
         </div>
-          <div className="flex flex-col gap-2">
-          <RailButton label="Help" onClick={() => setHelpOpen(true)}><CircleHelp /></RailButton>
-          {adminCanPurgeMedia && <Link href="/admin/numbers" aria-label="Admin settings" title="Admin settings" className="flex size-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-muted hover:text-slate-900"><Settings2 /></Link>}
-          <div className="relative mt-2"><Button onClick={() => setUserMenu((open) => !open)} aria-label="Open account menu" title={user.name} className="rounded-full" type="button" variant="ghost"><Avatar className="size-9 border"><AvatarFallback className="bg-[#e4eee8] text-xs text-[#315d47]">{user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</AvatarFallback></Avatar></Button>{userMenu && <div className="absolute bottom-0 left-12 z-30 w-56 rounded-xl border bg-white p-2 shadow-lg"><div className="px-2 py-2"><div className="truncate text-xs font-semibold">{user.name}</div><div className="truncate text-[10px] text-muted-foreground">{user.email}</div><div className="mt-1 text-[10px] text-primary">{user.role}</div></div><Separator className="my-1" /><Link href="/account/security" onClick={() => setUserMenu(false)} className="block rounded-lg px-2 py-2 text-xs hover:bg-muted">Account security</Link>{adminCanPurgeMedia && <Link href="/admin/numbers" onClick={() => setUserMenu(false)} className="block rounded-lg px-2 py-2 text-xs hover:bg-muted">Workspace administration</Link>}<Button onClick={() => void signOut()} className="w-full rounded-lg px-2 py-2 text-left text-xs text-red-700 hover:bg-red-50" type="button" variant="ghost">Sign out</Button></div>}</div>
+
+        <div className="flex flex-col items-center gap-2">
+          {adminCanPurgeMedia && (
+            <Link
+              href="/admin/numbers"
+              aria-label="Admin settings"
+              title="Admin settings"
+              className="flex size-10 items-center justify-center rounded-xl text-[#54656f] transition-colors hover:bg-[#e9edef] hover:text-[#111b21]"
+            >
+              <Settings2 className="size-5" />
+            </Link>
+          )}
+          <RailButton label="Help" onClick={() => setHelpOpen(true)}>
+            <CircleHelp className="size-5" />
+          </RailButton>
+
+          {/* User profile with dropdown */}
+          <div className="relative mt-1">
+            <Button
+              onClick={() => setUserMenu((open) => !open)}
+              aria-label="Open account menu"
+              title={user.name}
+              className="size-10 rounded-full p-0 hover:bg-[#e9edef]"
+              type="button"
+              variant="ghost"
+            >
+              <Avatar className="size-9 border border-[#d1d7db]">
+                <AvatarFallback className="bg-[#00a884]/15 text-xs font-semibold text-[#008069]">
+                  {user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+            {userMenu && (
+              <div className="absolute bottom-1 left-12 z-50 w-60 rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
+                <div className="px-3 py-2 border-b border-gray-100">
+                  <div className="truncate text-xs font-semibold text-[#111b21]">{user.name}</div>
+                  <div className="truncate text-[11px] text-[#667781]">{user.email}</div>
+                  <div className="mt-1 inline-block rounded bg-[#d9fdd3] px-1.5 py-0.5 text-[10px] font-medium text-[#008069]">{user.role}</div>
+                </div>
+                <div className="py-1">
+                  <Link href="/account/security" onClick={() => setUserMenu(false)} className="block rounded-lg px-3 py-2 text-xs text-[#111b21] hover:bg-[#f0f2f5]">
+                    Account security
+                  </Link>
+                  {adminCanPurgeMedia && (
+                    <Link href="/admin/numbers" onClick={() => setUserMenu(false)} className="block rounded-lg px-3 py-2 text-xs text-[#111b21] hover:bg-[#f0f2f5]">
+                      Workspace administration
+                    </Link>
+                  )}
+                  <Button onClick={() => void signOut()} className="w-full justify-start rounded-lg px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 hover:text-red-700" type="button" variant="ghost">
+                    Sign out
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
-      <section className="flex w-full min-w-[300px] max-w-[370px] shrink-0 flex-col border-r md:w-[330px]">
-        <div className="flex h-[68px] items-center justify-between border-b px-5">
-          <div><div className="text-[15px] font-semibold">Inbox</div><div className="text-xs text-muted-foreground">Customer conversations</div></div>
-          <div className="flex items-center gap-1">{(user.role === "Owner" || user.role === "Admin") && <div className="relative"><IconButton label={`Admin alerts${alertCount ? `, ${alertCount} unread` : ""}`} onClick={() => { setAlertsOpen((open) => !open); void refreshAlerts(); }}><Bell className="size-[18px]" />{alertCount > 0 && <span className="absolute right-0.5 top-0.5 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-4 text-white">{alertCount > 99 ? "99+" : alertCount}</span>}</IconButton>{alertsOpen && <section aria-label="Admin alerts" className="absolute right-0 top-11 z-40 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border bg-white shadow-xl"><div className="flex items-center justify-between border-b px-4 py-3"><div><h2 className="text-sm font-semibold">Admin alerts</h2><p className="text-[10px] text-muted-foreground">Number, delivery, webhook, and failover events</p></div><Button variant="ghost" size="sm" disabled={!alertCount} onClick={() => void markAlertRead()}>Mark all read</Button></div><div className="max-h-[60vh] overflow-y-auto">{alerts.map((alert) => { const params = new URLSearchParams(); if (alert.targetId && alert.targetType === "CHANNEL_NUMBER") params.set("number", alert.targetId); if (alert.targetId && alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT") params.set("waba", alert.targetId); const numberTarget = params.size > 0 ? `/admin/numbers?${params.toString()}` : "/admin/numbers"; const href = alert.targetType === "WEBHOOK_EVENT" ? "/admin/webhooks" : alert.targetType === "CHANNEL_NUMBER" || alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT" || alert.targetType === "FAILOVER_EVENT" ? numberTarget : alert.targetType === "CONTACT" && alert.targetId ? `/?contact=${encodeURIComponent(alert.targetId)}` : "/admin/numbers"; return <Link href={href} key={alert.id} onClick={() => { setAlertsOpen(false); if (!alert.readAt) void markAlertRead(alert.id); }} className={`block border-b px-4 py-3 hover:bg-muted/50 ${alert.readAt ? "bg-white" : "bg-amber-50/50"}`}><div className="flex items-start justify-between gap-2"><p className="text-xs font-semibold">{alert.title}</p><Badge variant={alert.severity === "CRITICAL" ? "warning" : alert.severity === "WARNING" ? "outline" : "secondary"}>{alert.severity === "CRITICAL" ? "Urgent" : alert.severity === "WARNING" ? "Review" : "Info"}</Badge></div><p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{alert.message}</p><p className="mt-2 text-[10px] text-muted-foreground">{new Date(alert.createdAt).toLocaleString()}</p></Link>; })}{alerts.length === 0 && <p className="p-6 text-center text-xs text-muted-foreground">No alerts yet. Critical WhatsApp events will appear here.</p>}</div></section>}</div>}<Link href="/customers?new=1" aria-label="Add customer" title="Add customer" className="inline-flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"><Plus /></Link></div>
+      {/* 2. Conversations Column (WhatsApp Chat List) */}
+      <section className={`${activeId ? "hidden sm:flex" : "flex"} w-full sm:w-[360px] md:w-[390px] lg:w-[420px] shrink-0 flex-col border-r border-[#d1d7db] bg-white h-full`}>
+        {/* Chats Header */}
+        <div className="flex h-[60px] items-center justify-between border-b border-[#d1d7db] bg-[#f0f2f5] px-4 shrink-0">
+          <h1 className="text-xl font-bold tracking-tight text-[#111b21]">Chats</h1>
+          <div className="flex items-center gap-1 text-[#54656f]">
+            {(user.role === "Owner" || user.role === "Admin") && (
+              <div className="relative">
+                <IconButton label={`Admin alerts${alertCount ? `, ${alertCount} unread` : ""}`} onClick={() => { setAlertsOpen((open) => !open); void refreshAlerts(); }}>
+                  <Bell className="size-5 text-[#54656f]" />
+                  {alertCount > 0 && (
+                    <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-4 text-white">
+                      {alertCount > 99 ? "99+" : alertCount}
+                    </span>
+                  )}
+                </IconButton>
+                {alertsOpen && (
+                  <section aria-label="Admin alerts" className="absolute left-0 sm:left-auto sm:right-0 top-11 z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#d1d7db] bg-white shadow-2xl">
+                    <div className="flex items-center justify-between border-b border-[#e9edef] px-4 py-3 bg-[#f0f2f5]">
+                      <div>
+                        <h2 className="text-sm font-semibold text-[#111b21]">Admin alerts</h2>
+                        <p className="text-[10px] text-[#667781]">Number, delivery, webhook, and failover events</p>
+                      </div>
+                      <Button variant="ghost" size="sm" disabled={!alertCount} onClick={() => void markAlertRead()} className="text-xs text-[#008069] hover:bg-black/5">
+                        Mark read
+                      </Button>
+                    </div>
+                    <div className="max-h-[60vh] overflow-y-auto wa-scrollbar">
+                      {alerts.map((alert) => {
+                        const params = new URLSearchParams();
+                        if (alert.targetId && alert.targetType === "CHANNEL_NUMBER") params.set("number", alert.targetId);
+                        if (alert.targetId && alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT") params.set("waba", alert.targetId);
+                        const numberTarget = params.size > 0 ? `/admin/numbers?${params.toString()}` : "/admin/numbers";
+                        const href = alert.targetType === "WEBHOOK_EVENT" ? "/admin/webhooks" : alert.targetType === "CHANNEL_NUMBER" || alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT" || alert.targetType === "FAILOVER_EVENT" ? numberTarget : alert.targetType === "CONTACT" && alert.targetId ? `/?contact=${encodeURIComponent(alert.targetId)}` : "/admin/numbers";
+                        return (
+                          <Link href={href} key={alert.id} onClick={() => { setAlertsOpen(false); if (!alert.readAt) void markAlertRead(alert.id); }} className={`block border-b border-[#f0f2f5] px-4 py-3 hover:bg-[#f5f6f6] ${alert.readAt ? "bg-white" : "bg-[#f0fdf4]"}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-xs font-semibold text-[#111b21]">{alert.title}</p>
+                              <Badge variant={alert.severity === "CRITICAL" ? "warning" : "secondary"}>
+                                {alert.severity === "CRITICAL" ? "Urgent" : "Info"}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-[#667781]">{alert.message}</p>
+                            <p className="mt-2 text-[10px] text-[#8696a0]">{new Date(alert.createdAt).toLocaleString()}</p>
+                          </Link>
+                        );
+                      })}
+                      {alerts.length === 0 && <p className="p-6 text-center text-xs text-[#667781]">No alerts yet. Critical WhatsApp events will appear here.</p>}
+                    </div>
+                  </section>
+                )}
+              </div>
+            )}
+            <Link href="/customers?new=1" aria-label="New chat" title="New chat" className="flex size-9 items-center justify-center rounded-full text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21] transition-colors">
+              <Plus className="size-5" />
+            </Link>
+          </div>
         </div>
-        <div className="p-4 pb-3">
-          <div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search conversations" className="h-10 rounded-lg bg-[#fafbfa] pl-9" /></div>
-        </div>
-        <div className="flex items-center gap-1 overflow-x-auto px-4 pb-3">
-          {["All messages", "Mine", "Unassigned", "Team", "Unread", "Failed"].map((tab) => <Button key={tab} onClick={() => setActiveTab(tab)} className={`shrink-0 rounded-full px-2.5 py-1.5 text-xs font-medium transition-colors ${activeTab === tab ? "bg-[#eaf3ed] text-[#285b40]" : "text-muted-foreground hover:bg-muted"}`} type="button" variant="ghost">{tab}{tab === "Unread" && <span className="ml-1.5 text-[10px]">{unreadCount}</span>}</Button>)}
-          <IconButton label="Filter conversations" className="ml-auto shrink-0" onClick={() => setFilterOpen((open) => !open)}><Filter className="size-4" /></IconButton>
-        </div>
-        {savedInboxViews.length > 0 && <div aria-label="Saved inbox views" className="flex gap-1.5 overflow-x-auto px-4 pb-3">{savedInboxViews.map((view) => <div key={view.id} className="flex shrink-0 items-center rounded-full border bg-white"><Button type="button" size="sm" variant="ghost" className="h-7 rounded-r-none px-2.5 text-[10px]" onClick={() => applyInboxView(view)}>{view.name}</Button><Button type="button" size="icon" variant="ghost" aria-label={`Delete saved view ${view.name}`} title={`Delete ${view.name}`} className="size-7 rounded-l-none text-muted-foreground" disabled={savedInboxViewsBusy} onClick={() => void deleteInboxView(view)}><X /></Button></div>)}</div>}
-        {filterOpen && <div className="grid grid-cols-2 gap-2 px-4 pb-3"><SelectControl aria-label="Filter by conversation status" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="h-8 min-w-0 rounded-md border bg-white px-2 text-[11px]"><option>All states</option><option>Open</option><option>Waiting</option><option>Resolved</option></SelectControl><SelectControl aria-label="Filter by WhatsApp number" value={numberFilter} onChange={(event) => setNumberFilter(event.target.value)} className="h-8 min-w-0 rounded-md border bg-white px-2 text-[11px]"><option value="">All numbers</option>{channelNumbers.map((number) => <option key={number.id} value={number.id}>{number.label} · {number.number}</option>)}</SelectControl><SelectControl aria-label="Filter by team" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="h-8 min-w-0 rounded-md border bg-white px-2 text-[11px]"><option value="">All teams</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</SelectControl><SelectControl aria-label="Filter by tag" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="h-8 min-w-0 rounded-md border bg-white px-2 text-[11px]"><option value="">All tags</option>{[...new Set([...availableTags, ...chats.flatMap((chat) => chat.tags ?? (chat.label ? [chat.label] : []))])].sort().map((tag) => <option key={tag} value={tag}>{tag}</option>)}</SelectControl><label className="flex h-8 items-center gap-1 text-[10px] text-muted-foreground">From<Input aria-label="Messages on or after date" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-8 min-w-0 px-1 text-[10px]" /></label><label className="flex h-8 items-center gap-1 text-[10px] text-muted-foreground">To<Input aria-label="Messages on or before date" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-8 min-w-0 px-1 text-[10px]" /></label><Button type="button" size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => { setStateFilter("All states"); setNumberFilter(""); setTeamFilter(""); setTagFilter(""); setDateFrom(""); setDateTo(""); setActiveTab("All messages"); }}>Clear filters</Button><Button type="button" size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setSaveViewOpen((open) => !open)}>Save current view</Button>{saveViewOpen && <div className="col-span-2 flex gap-2"><Input aria-label="Saved view name" maxLength={40} placeholder="Name this view" value={saveViewName} onChange={(event) => setSaveViewName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveInboxView(); } }} className="h-8 text-xs" /><Button type="button" size="sm" className="h-8" disabled={savedInboxViewsBusy || !saveViewName.trim()} onClick={() => void saveInboxView()}>{savedInboxViewsBusy ? "Saving…" : "Save"}</Button></div>}</div>}
-        <div className="flex-1 overflow-y-auto">
-          {visibleChats.map((chat) => <Button key={chat.id} onClick={() => openChat(chat)} className={`flex w-full items-start gap-3 border-b px-4 py-4 text-left transition-colors hover:bg-[#fafbfa] ${activeId === chat.id ? "bg-[#f1f6f2]" : "bg-white"}`} type="button" variant="ghost">
-            <Avatar className="size-10 shrink-0"><AvatarFallback className={`${chat.color} text-xs`}>{chat.initials}</AvatarFallback></Avatar>
-            <div className="min-w-0 flex-1"><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-[13px] font-semibold">{chat.name}</span><span className="shrink-0 text-[10px] text-muted-foreground">{chat.time}</span></div><div className="flex items-center justify-between gap-2"><p className="truncate text-xs text-muted-foreground">{chat.preview}</p>{chat.unread && <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-white">{chat.unread}</span>}</div><div className="mt-1 flex min-w-0 items-center gap-1.5">{chat.assignedTo && <span className="max-w-[90px] truncate text-[10px] text-muted-foreground">{chat.assignedTo}</span>}<span className="text-[10px] text-muted-foreground">· {chat.state ?? "Open"}</span>{chat.messageCount ? <span className="ml-auto max-w-[110px] truncate text-[10px] text-muted-foreground">{channelNumbers.find((number) => number.id === chat.latestMessageSenderNumberId)?.label ?? "WhatsApp"}</span> : null}</div><QueueAgeBadge chat={chat} />{(chat.tags ?? (chat.label ? [chat.label] : [])).slice(0, 2).map((tag) => <Badge key={tag} variant="secondary" className="mr-1 mt-1 px-2 py-0.5 text-[10px] font-medium">{tag}</Badge>)}</div>
-          </Button>)}
-          {visibleChats.length === 0 && <div className="p-8 text-center text-sm text-muted-foreground">No conversations match your search.</div>}
-        </div>
-        <div className="border-t p-4"><Link href="/admin/numbers" className="flex items-center gap-2 rounded-lg bg-[#f7f9f7] p-3 hover:bg-[#eef4ef]"><div className="flex size-8 items-center justify-center rounded-full bg-white text-primary"><Wifi className="size-4" /></div><div className="min-w-0 flex-1"><div className="text-xs font-semibold">{senderNumbers.length} active numbers</div><div className="text-[10px] text-muted-foreground">Manage sender numbers</div></div><ChevronRight className="size-4 text-muted-foreground" /></Link></div>
-      </section>
 
-      <section className="flex min-w-0 flex-1 flex-col bg-[#f7f8f6]">
-        <header className="flex h-[68px] items-center justify-between border-b bg-white px-4 md:px-6">
-          <div className="flex min-w-0 items-center gap-3"><Avatar className="size-10"><AvatarFallback className={`${activeChat.color} text-xs`}>{activeChat.initials}</AvatarFallback></Avatar><div className="min-w-0"><div className="flex items-center gap-2"><h1 className="truncate text-sm font-semibold">{activeChat.name}</h1><Badge variant="outline" className="hidden text-[10px] sm:inline-flex">{activeThreadState}</Badge></div><p className="text-xs text-muted-foreground">{activeChat.phone}</p>{activeThreadNumberIds.length > 1 && <label className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground"><span>Viewing thread</span><SelectControl aria-label="View conversation thread by WhatsApp number" value={viewedThreadNumberId} onChange={(event) => { const numberId = event.target.value; setViewThread({ contactId: activeChat.id, numberId }); if (senderNumbersForChat.some((number) => number.id === numberId)) setActiveNumberId(numberId); }} className="h-6 max-w-[170px] rounded border bg-white px-1 text-[10px] text-foreground">{activeThreadNumberIds.map((numberId) => { const number = channelNumbers.find((item) => item.id === numberId); return <option key={numberId} value={numberId}>{number?.label ?? "WhatsApp number"} · {number?.number ?? numberId}</option>; })}</SelectControl></label>}</div></div>
-          <div className="flex items-center gap-1">
-            {user.role !== "Agent" && <Button type="button" variant="outline" size="sm" disabled={senderNumbersForChat.length < 2} onClick={beginReroute} className="mr-1 h-8 px-2 text-[11px]"><ArrowRightLeft data-icon="inline-start" />Reroute</Button>}
-            <div className="relative">
-              <Button disabled={!senderNumbersForChat.length} onClick={() => setNumberMenu((open) => !open)} className="mr-2 flex h-9 items-center gap-2 rounded-lg border bg-white px-3 text-left transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60" type="button" variant="ghost"><span className={`size-2 rounded-full ${activeNumber ? "bg-emerald-500" : "bg-slate-300"}`} /><span className="hidden text-xs sm:block"><span className="font-medium">{activeNumber?.label ?? "No active number"}</span>{activeNumber && <span className="ml-2 text-muted-foreground">{activeNumber.number}</span>}</span>{senderNumbers.length > 0 && <ChevronDown className="size-3.5 text-muted-foreground" />}</Button>
-              {numberMenu && <div className="absolute right-2 top-11 z-20 w-64 rounded-xl border bg-white p-1.5 shadow-lg">{senderNumbersForChat.length ? senderNumbersForChat.map((number) => <Button key={number.id} onClick={() => { setActiveNumberId(number.id); setViewThread({ contactId: activeChat.id, numberId: number.id }); setNumberMenu(false); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-muted" type="button" variant="ghost"><span className="size-2 rounded-full bg-emerald-500" /><span className="min-w-0 flex-1"><span className="block text-xs font-medium">{number.label}</span><span className="block text-[10px] text-muted-foreground">{number.number}</span></span>{activeNumber?.id === number.id && <Check className="size-4 text-primary" />}</Button>) : <p className="px-2.5 py-3 text-xs text-muted-foreground">No active number is available for this conversation’s team.</p>}{(user.role === "Owner" || user.role === "Admin") && <><Separator className="my-1" /><Link href="/admin/numbers" className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-primary hover:bg-muted"><Plus className="size-4" />Manage numbers</Link></>}</div>}
+        {/* WhatsApp Search Bar */}
+        <div className="p-2.5 pb-2 border-b border-[#f0f2f5] bg-white">
+          <div className="relative flex items-center rounded-lg bg-[#f0f2f5] px-3 py-1.5 focus-within:bg-white focus-within:ring-1 focus-within:ring-[#00a884] transition-all">
+            <Search className="size-4 shrink-0 text-[#54656f] mr-2.5" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search or start new chat"
+              className="w-full bg-transparent text-[13.5px] text-[#111b21] placeholder:text-[#8696a0] outline-none"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery("")} className="text-[#8696a0] hover:text-[#111b21] ml-1">
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* WhatsApp Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 wa-scrollbar border-b border-[#f0f2f5]">
+          {["All", "Unread", "Open", "Waiting", "Resolved", "Mine"].map((tab) => {
+            const label = tab === "All" ? "All messages" : tab;
+            const isActive = activeTab === (tab === "All" ? "All messages" : tab);
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(label)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs transition-colors ${
+                  isActive
+                    ? "bg-[#d9fdd3] text-[#008069] font-semibold"
+                    : "bg-[#f0f2f5] text-[#54656f] hover:bg-[#e9edef] font-medium"
+                }`}
+              >
+                {tab}
+                {tab === "Unread" && unreadCount > 0 && (
+                  <span className="ml-1.5 rounded-full bg-[#008069] px-1 text-[10px] text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <IconButton label="Filter conversations" className="ml-auto size-7 shrink-0 text-[#54656f]" onClick={() => setFilterOpen((open) => !open)}>
+            <Filter className="size-3.5" />
+          </IconButton>
+        </div>
+
+        {/* Saved Inbox Views */}
+        {savedInboxViews.length > 0 && (
+          <div aria-label="Saved inbox views" className="flex gap-1.5 overflow-x-auto px-3 py-1.5 wa-scrollbar border-b border-[#f0f2f5]">
+            {savedInboxViews.map((view) => (
+              <div key={view.id} className="flex shrink-0 items-center rounded-full border border-[#d1d7db] bg-white">
+                <Button type="button" size="sm" variant="ghost" className="h-6 rounded-r-none px-2 text-[10px] text-[#54656f]" onClick={() => applyInboxView(view)}>
+                  {view.name}
+                </Button>
+                <Button type="button" size="icon" variant="ghost" aria-label={`Delete ${view.name}`} className="size-6 rounded-l-none text-[#8696a0] hover:text-red-600" disabled={savedInboxViewsBusy} onClick={() => void deleteInboxView(view)}>
+                  <X className="size-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Advanced Filters Drawer */}
+        {filterOpen && (
+          <div className="grid grid-cols-2 gap-2 p-3 bg-[#f0f2f5]/60 border-b border-[#d1d7db]">
+            <SelectControl aria-label="Filter by state" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
+              <option>All states</option>
+              <option>Open</option>
+              <option>Waiting</option>
+              <option>Resolved</option>
+            </SelectControl>
+            <SelectControl aria-label="Filter by WhatsApp number" value={numberFilter} onChange={(event) => setNumberFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
+              <option value="">All numbers</option>
+              {channelNumbers.map((number) => <option key={number.id} value={number.id}>{number.label} · {number.number}</option>)}
+            </SelectControl>
+            <SelectControl aria-label="Filter by team" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
+              <option value="">All teams</option>
+              {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+            </SelectControl>
+            <SelectControl aria-label="Filter by tag" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
+              <option value="">All tags</option>
+              {[...new Set([...availableTags, ...chats.flatMap((chat) => chat.tags ?? (chat.label ? [chat.label] : []))])].sort().map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+            </SelectControl>
+            <Button type="button" size="sm" variant="outline" className="h-8 text-[11px] bg-white" onClick={() => { setStateFilter("All states"); setNumberFilter(""); setTeamFilter(""); setTagFilter(""); setDateFrom(""); setDateTo(""); setActiveTab("All messages"); }}>
+              Reset filters
+            </Button>
+            <Button type="button" size="sm" variant="outline" className="h-8 text-[11px] bg-white" onClick={() => setSaveViewOpen((open) => !open)}>
+              Save view
+            </Button>
+            {saveViewOpen && (
+              <div className="col-span-2 flex gap-2 pt-1">
+                <Input aria-label="Saved view name" maxLength={40} placeholder="Name this view" value={saveViewName} onChange={(event) => setSaveViewName(event.target.value)} className="h-8 text-xs bg-white" />
+                <Button type="button" size="sm" className="h-8 bg-[#00a884] text-white hover:bg-[#008f6f]" disabled={savedInboxViewsBusy || !saveViewName.trim()} onClick={() => void saveInboxView()}>
+                  {savedInboxViewsBusy ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* WhatsApp Chat List Items */}
+        <div className="flex-1 overflow-y-auto wa-scrollbar">
+          {visibleChats.map((chat) => {
+            const isSelected = activeId === chat.id;
+            return (
+              <button
+                key={chat.id}
+                onClick={() => openChat(chat)}
+                className={`flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors cursor-pointer border-b border-[#f0f2f5] ${
+                  isSelected ? "bg-[#f0f2f5]" : "hover:bg-[#f5f6f6] bg-white"
+                }`}
+                type="button"
+              >
+                <Avatar className="size-12 shrink-0">
+                  <AvatarFallback className={`${chat.color} text-white font-medium text-sm`}>
+                    {chat.initials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                    <span className="truncate text-[15.5px] font-medium text-[#111b21]">{chat.name}</span>
+                    <span className={`shrink-0 text-[12px] ${chat.unread ? "text-[#00a884] font-semibold" : "text-[#667781]"}`}>
+                      {chat.time}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-[13.5px] text-[#667781] leading-tight flex-1">
+                      {chat.preview}
+                    </p>
+                    {chat.unread ? (
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-[11px] font-semibold text-white">
+                        {chat.unread}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#8696a0]">
+                    <span className="capitalize">{chat.state ?? "Open"}</span>
+                    {chat.messageCount ? (
+                      <span>· {channelNumbers.find((n) => n.id === chat.latestMessageSenderNumberId)?.label ?? "WhatsApp"}</span>
+                    ) : null}
+                    <QueueAgeBadge chat={chat} />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+          {visibleChats.length === 0 && (
+            <div className="p-8 text-center text-sm text-[#667781]">
+              No conversations found.
             </div>
-            <IconButton label="Conversation details" className="hidden md:inline-flex" ><Info className="size-[18px]" /></IconButton><IconButton label="More options"><MoreHorizontal className="size-[18px]" /></IconButton>
-          </div>
-        </header>
+          )}
+        </div>
 
-        {notice && <div role="status" className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2 text-xs text-amber-900"><Info className="size-4 shrink-0" />{notice}<Button onClick={() => setNotice("")} className="ml-auto" type="button" variant="ghost"><X className="size-4" /></Button></div>}
-        <Marker role="status" className="justify-center py-4"><MarkerIcon><ShieldCheck /></MarkerIcon><MarkerContent className="text-[10px]">Messages are stored in your CRM timeline</MarkerContent></Marker>
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
-          <MessageScroller className="flex-1">
-            <MessageScrollerViewport aria-label={`Conversation with ${activeChat.name}`} className="px-4 pb-6 md:px-8">
-              <MessageScrollerContent className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-            {!activeChat.detailLoaded && <Marker role="status" className="w-fit max-w-full self-center rounded-full border bg-background px-3 py-1.5 text-[10px]"><MarkerContent>{loadingChatId === activeId ? "Loading conversation history…" : "Conversation history is not loaded yet."}</MarkerContent></Marker>}
-            {senderChanged && previousSender && activeNumber && <Marker role="status" variant="border" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950"><MarkerIcon className="self-start"><Info /></MarkerIcon><MarkerContent className="flex w-full flex-col items-start gap-1.5"><span className="text-xs font-semibold">This conversation is using a different WhatsApp number</span><span className="text-xs leading-relaxed">Earlier messages used {previousSender.label} ({previousSender.number}). New messages will come from {activeNumber.label} ({activeNumber.number}). WhatsApp does not transfer replies between numbers; the customer may need to message the new number to continue there.</span><Button type="button" size="sm" variant="outline" className="mt-1 h-8 border-amber-400 bg-background text-[11px] text-amber-950 hover:bg-amber-100" onClick={() => { setComposerMode("note"); selectAttachment(null); setDraft(`Reminder: let ${activeChat.name} know our WhatsApp number changed from ${previousSender.number} to ${activeNumber.number}. They may need to message the new number to continue the conversation.`); setNotice("Team-only reminder drafted. Save it as an internal note."); }}>Draft team reminder</Button></MarkerContent></Marker>}
-            <Marker variant="separator" className="my-2"><MarkerContent>Today</MarkerContent></Marker>
-            {activeThreadNumberIds.length > 1 && <Marker role="status" className="mx-auto w-fit rounded-full border bg-background px-3 py-1"><MarkerContent className="text-[10px]">Showing this number’s WhatsApp thread. Other number threads remain in the customer timeline.</MarkerContent></Marker>}
-            {viewedThreadMessages.map((message, index) => <InboxMessageRow key={message.id ?? `${activeChat.id}-${index}`} chat={activeChat} message={message} index={index} senderNumbers={channelNumbers} canRetry={adminCanRetryMessages} canPurge={adminCanPurgeMedia} sending={sending} onRetry={(messageId) => void retryFailedMessage(messageId)} onPurge={(messageId) => void purgeAttachment(messageId)} />)}
-            {viewedThreadMessages.length === 0 && <Marker role="status" className="mx-auto w-fit rounded-full border bg-background px-3 py-1.5"><MarkerContent>No messages in this WhatsApp number thread yet. You can start it with an approved template.</MarkerContent></Marker>}
-            {activeChat.internalNotes?.map((note) => <Marker role="note" key={note.id} className="mx-auto w-full max-w-xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950"><MarkerContent className="flex w-full flex-col gap-1"><span className="flex items-center justify-between gap-3"><span className="text-[10px] font-semibold uppercase tracking-wide">Internal note · Team only</span><span className="text-[10px]">{note.author} · {note.time}</span></span><span className="whitespace-pre-wrap text-xs leading-relaxed">{note.text}</span></MarkerContent></Marker>)}
-            {composerMode !== "note" && activeNumber && <Marker role="status" className="mt-2 justify-center"><MarkerContent className="rounded-full bg-background/80 px-3 py-1 text-[10px]">Sending from {activeNumber.number}</MarkerContent></Marker>}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton aria-label="Jump to latest message" />
-          </MessageScroller>
-        </MessageScrollerProvider>
-        <div className="px-4 pb-4 md:px-8 md:pb-6">
-          <div className={`mx-auto max-w-3xl rounded-2xl border p-2 shadow-sm focus-within:ring-2 ${composerMode === "note" ? "border-amber-300 bg-amber-50 focus-within:ring-amber-200" : "bg-white focus-within:ring-primary/20"}`}>
-            {!replyAllowed && composerMode !== "note" && <div className="mx-2 mt-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">{consentStatus === "opted_out" ? "Customer opted out. WhatsApp messages are blocked." : "Consent is not recorded. Record customer opt-in in the customer details to enable sending."}</div>}
-            {replyAllowed && !activeNumber && composerMode !== "note" && <div className="mx-2 mt-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">There is no active sender number. Ask an administrator to add and approve one.</div>}
-            {composerMode === "reply" && <input ref={attachmentInput} type="file" hidden accept="image/jpeg,image/png,video/mp4,audio/aac,audio/mp4,audio/mpeg,audio/amr,audio/ogg,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={(event) => selectAttachment(event.target.files?.[0] ?? null)} />}
-            {composerMode === "reply" && attachment && <div className="mx-2 mt-2 flex items-center gap-3 rounded-lg border bg-slate-50 p-2">{attachmentPreview ? <Image src={attachmentPreview} alt="Attachment preview" width={56} height={56} unoptimized className="size-14 rounded-md object-cover" /> : <div className="flex size-14 items-center justify-center rounded-md bg-white"><Paperclip className="size-5 text-primary" /></div>}<div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{attachment.name}</p><p className="text-[10px] text-muted-foreground">{(attachment.size / (1024 * 1024)).toFixed(1)} MB · preview ready</p></div><Button type="button" aria-label="Remove attachment" onClick={() => { selectAttachment(null); if (attachmentInput.current) attachmentInput.current.value = ""; }} className="rounded-md p-1 text-muted-foreground hover:bg-white" variant="ghost"><X className="size-4" /></Button></div>}
-            {composerMode === "template" ? <div className="grid gap-2 p-2">
-              <label className="flex flex-col gap-1 text-[11px] font-medium">Approved template<SelectControl value={selectedTemplateId} onChange={(event) => { const id = event.target.value; setSelectedTemplateId(id); const item = approvedTemplates.find((template) => template.id === id); setTemplateParameters(Array.from({ length: templateVariables(templateBody(item)).length }, () => "")); }} className="h-9 rounded-lg border bg-white px-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">Choose a synced template</option>{approvedTemplates.map((template) => <option key={template.id} value={template.id}>{template.name} · {template.language}</option>)}</SelectControl></label>
-              {selectedTemplate && selectedTemplateParameterCount > 0 && <div className="grid gap-2 sm:grid-cols-2">{templateParameters.map((value, index) => { const variable = selectedTemplateVariables[index]; return <label key={`${selectedTemplate.id}-${variable}`} className="flex flex-col gap-1 text-[11px] font-medium">Value for {`{{${variable}}}`}<Input value={value} maxLength={1024} onChange={(event) => setTemplateParameters((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Text value for ${variable}`} /></label>; })}</div>}
-              {selectedTemplate && <div className="rounded-lg border bg-slate-50 px-3 py-2 text-xs text-slate-700"><p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Preview · {selectedTemplate.category}</p>{selectedTemplatePreview || "No text body preview available"}</div>}
-              {!approvedTemplates.length && <p className="text-xs text-muted-foreground">No approved templates are synced. Ask an administrator to sync them in Admin → Templates.</p>}
-            </div> : <Textarea ref={draftInputRef} value={draft} onChange={(event) => setDraft(event.target.value)} disabled={!activeChat.detailLoaded || (composerMode === "reply" && (!replyAllowed || !activeNumber || !activeSenderEligible))} onKeyDown={(event) => { if (composerMode === "reply" && (event.key === " " || event.key === "Tab")) { const match = /(?:^|\s);([a-z0-9_-]{1,24})$/i.exec(draft); const reply = match ? cannedReplies.find((item) => item.shortcut?.toLowerCase() === match[1].toLowerCase()) : undefined; if (match && reply) { event.preventDefault(); const prefix = draft.slice(0, draft.length - match[0].length); setDraft(`${prefix}${prefix && !/\s$/.test(prefix) ? " " : ""}${personalizedReply(reply)}${event.key === " " ? " " : ""}`); setSavedReplyOpen(false); return; } } if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); if (composerMode === "note") void saveInternalNote(); else void sendMessage(); } }} placeholder={composerMode === "note" ? "Write a private note for your team..." : !activeNumber ? "No active sender number is available for this team" : replyAllowed ? "Write a message..." : "Replies disabled until opt-in is recorded"} rows={2} className="max-h-32 min-h-14 w-full resize-y border-0 bg-transparent px-3 py-2 text-[13px] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50" />}
-            {savedReplyOpen && <div className="mx-2 mb-2 max-h-56 overflow-y-auto rounded-lg border bg-white p-2 shadow-sm"><div className="flex items-center justify-between px-2 pb-1"><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Saved replies</p><kbd className="rounded border px-1 py-0.5 text-[9px] text-muted-foreground">⌘/Ctrl ⇧ R</kbd></div>{cannedReplies.length ? <div className="flex flex-col">{cannedReplies.map((reply) => <Button type="button" key={reply.id} onClick={() => insertSavedReply(reply)} className="rounded-md px-2 py-2 text-left hover:bg-muted" variant="ghost"><span className="flex items-center justify-between gap-2 text-xs font-medium">{reply.title}{reply.shortcut && <span className="text-[10px] font-normal text-muted-foreground">;{reply.shortcut}</span>}</span><span className="mt-1 block truncate text-[10px] text-muted-foreground">{personalizedReply(reply)}</span></Button>)}</div> : <p className="px-2 py-3 text-xs text-muted-foreground">No active saved replies have been created.</p>}{(user.role === "Owner" || user.role === "Admin") && <Link href="/admin/replies" onClick={() => setSavedReplyOpen(false)} className="mt-1 block border-t px-2 pt-2 text-[10px] font-medium text-primary hover:underline">Manage saved replies</Link>}</div>}
-            {emojiOpen && composerMode === "reply" && <div aria-label="Choose an emoji" className="mb-2 flex flex-wrap gap-1 rounded-lg border bg-white p-2 shadow-sm">{["😀", "😊", "👍", "❤️", "🎉", "🙏", "✅", "👋", "🙂", "🤔", "✨", "💬"].map((emoji) => <Button key={emoji} type="button" aria-label={`Insert ${emoji}`} variant="ghost" className="size-9 p-0 text-lg" onClick={() => { setDraft((current) => `${current}${emoji}`); setEmojiOpen(false); draftInputRef.current?.focus(); }}>{emoji}</Button>)}</div>}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 px-1 pt-2"><div className="flex items-center gap-1"><Button type="button" size="sm" variant={composerMode === "reply" ? "secondary" : "ghost"} onClick={() => setComposerMode("reply")} className="h-7 px-2 text-[11px]">Reply</Button><Button type="button" size="sm" variant={composerMode === "template" ? "secondary" : "ghost"} onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("template"); }} className="h-7 px-2 text-[11px]">Template</Button><Button type="button" size="sm" variant={composerMode === "note" ? "secondary" : "ghost"} onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("note"); }} className="h-7 px-2 text-[11px]">Internal note</Button>{composerMode === "reply" && replyAllowed && activeNumber && <span className="ml-2 hidden items-center gap-1 text-[10px] sm:flex"><Clock3 className="size-3" />{serviceWindowOpen ? `Free text window open${serviceWindowExpiresAt ? ` until ${new Date(serviceWindowExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}` : "Window closed · use an approved template"}</span>}{composerMode === "reply" && replyAllowed && activeNumber && <><IconButton label="Attach file" onClick={() => attachmentInput.current?.click()}><Paperclip className="size-[17px]" /></IconButton><IconButton label="Add emoji" onClick={() => setEmojiOpen((open) => !open)}><Smile className="size-[17px]" /></IconButton><IconButton label="Insert saved reply" onClick={() => { setEmojiOpen(false); setSavedReplyOpen((open) => !open); }}><Sparkles className="size-[17px]" /></IconButton></>}</div><Button size="sm" disabled={sending || !activeChat.detailLoaded || (composerMode === "note" ? !draft.trim() : composerMode === "template" ? (!selectedTemplate || !replyAllowed || !activeNumber || !activeSenderEligible || templateParameters.length !== selectedTemplateParameterCount || templateParameters.some((value) => !value.trim())) : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || !serviceWindowOpen)} onClick={() => composerMode === "note" ? void saveInternalNote() : composerMode === "template" ? void sendTemplateMessage() : void sendMessage()} className={`rounded-lg px-3 ${composerMode === "note" ? "bg-amber-700 text-white hover:bg-amber-800" : ""}`}>{sending ? "Uploading…" : composerMode === "note" ? "Save note" : <><Send data-icon="inline-start" />{composerMode === "template" ? "Send template" : attachment ? "Send attachment" : "Send"}</>}</Button></div>
-          </div>
-          <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-muted-foreground">{composerMode === "note" ? "Internal notes are only visible to your team and are not sent to WhatsApp" : composerMode === "template" ? "Templates can start a new WhatsApp conversation when the customer has opted in" : serviceWindowOpen ? `Free-form replies are available on ${activeNumber?.number} until ${serviceWindowExpiresAt ? new Date(serviceWindowExpiresAt).toLocaleString() : "the window closes"}` : "This number’s 24-hour customer-service window is closed. Use an approved template to start or resume messaging."}</p>
+        {/* Bottom Numbers Status Pill */}
+        <div className="border-t border-[#d1d7db] p-3 bg-[#f0f2f5]">
+          <Link href="/admin/numbers" className="flex items-center gap-2.5 rounded-lg bg-white p-2.5 shadow-2xs hover:bg-[#fafbfa] transition-colors border border-[#e9edef]">
+            <div className="flex size-7 items-center justify-center rounded-full bg-[#00a884]/15 text-[#008069]">
+              <Wifi className="size-3.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-[#111b21]">{senderNumbers.length} connected WhatsApp numbers</div>
+              <div className="text-[10px] text-[#667781]">Twilio WhatsApp multi-account gateway</div>
+            </div>
+            <ChevronRight className="size-4 text-[#8696a0]" />
+          </Link>
         </div>
       </section>
 
-      {showProfile && <aside className="hidden w-[285px] shrink-0 flex-col border-l bg-white xl:flex">
-        <div className="flex h-[68px] items-center justify-between border-b px-5"><span className="text-sm font-semibold">Customer details</span><Button onClick={() => setShowProfile(false)} aria-label="Close customer details" className="rounded-md p-1 text-muted-foreground hover:bg-muted" type="button" variant="ghost"><X className="size-4" /></Button></div>
-        <div className="flex flex-col items-center border-b px-5 py-6"><Avatar className="size-16"><AvatarFallback className={`${activeChat.color} text-lg`}>{activeChat.initials}</AvatarFallback></Avatar><h2 className="mt-3 text-sm font-semibold">{activeChat.name}</h2><p className="mt-1 text-xs text-muted-foreground">{activeChat.phone}</p><div className="mt-4 flex flex-wrap justify-center gap-2"><SelectControl aria-label="Assign conversation to a team member" disabled={!activeThreadExists} value={activeThreadAssigneeId ?? ""} onChange={(event) => void updateConversation(activeChat.id, "assign", event.target.value || null, undefined, undefined, viewedThreadNumberId)} className="h-8 max-w-[145px] rounded-md border bg-white px-2 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">Unassigned</option>{eligibleAssignees.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectControl>{activeThreadState !== "Resolved" && <Button variant="outline" size="sm" disabled={!activeThreadExists} className="h-8 text-xs" onClick={() => void updateConversation(activeChat.id, activeThreadState === "Waiting" ? "reopen" : "wait", undefined, undefined, undefined, viewedThreadNumberId)}><Clock3 data-icon="inline-start" />{activeThreadState === "Waiting" ? "Reopen" : "Waiting"}</Button>}<Button variant="outline" size="sm" disabled={!activeThreadExists} className="h-8 text-xs" onClick={() => void updateConversation(activeChat.id, activeThreadState === "Resolved" ? "reopen" : "resolve", undefined, undefined, undefined, viewedThreadNumberId)}><Archive data-icon="inline-start" />{activeThreadState === "Resolved" ? "Reopen" : "Resolve"}</Button></div></div>
-        <div className="border-b p-5"><div className="mb-3 flex items-center justify-between"><h3 className="text-xs font-semibold">Conversation</h3><Button className="text-muted-foreground" type="button" variant="ghost"><MoreHorizontal className="size-4" /></Button></div><div className="flex flex-col gap-3"><ProfileRow label="Status" value={activeThreadState} dot={activeThreadState === "Resolved" ? "bg-slate-400" : "bg-emerald-500"} />{!activeThreadExists && <p className="text-[10px] text-muted-foreground">Send an approved template to start this number-specific thread before assigning or changing its status.</p>}<div className="flex items-center justify-between gap-3"><span className="text-[11px] text-muted-foreground">Assigned to</span><SelectControl aria-label="Assign conversation" disabled={!activeThreadExists} value={activeThreadAssigneeId ?? ""} onChange={(event) => void updateConversation(activeChat.id, "assign", event.target.value || null, undefined, undefined, viewedThreadNumberId)} className="max-w-[145px] rounded-md border bg-white px-2 py-1 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">Unassigned</option>{eligibleAssignees.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</SelectControl></div><div className="flex items-center justify-between gap-3"><span className="text-[11px] text-muted-foreground">Team</span><SelectControl aria-label="Assign conversation to a team" disabled={!activeThreadExists} value={activeThreadTeamId ?? ""} onChange={(event) => void updateConversation(activeChat.id, "assign_team", undefined, undefined, event.target.value || null, viewedThreadNumberId)} className="max-w-[145px] rounded-md border bg-white px-2 py-1 text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">No team</option>{teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</SelectControl></div><ProfileRow label="Channel" value="WhatsApp" /><ProfileRow label="Number" value={channelNumbers.find((number) => number.id === viewedThreadNumberId)?.label ?? activeNumber?.label ?? "No active number"} /><ProfileRow label="Email" value={activeChat.email ?? "Not provided"} /><ProfileRow label="Source" value={activeChat.source ?? "Not recorded"} /><ProfileRow label="Owner" value={activeChat.ownerName ?? "Unassigned"} />{activeChat.additionalPhones?.map((phone) => <ProfileRow key={phone} label="Other phone" value={phone} />)}{Object.entries(activeChat.customFields ?? {}).map(([key, value]) => <ProfileRow key={key} label={key} value={String(value ?? "—")} />)}<ProfileRow label="Created" value={activeChat.createdAt ? new Date(activeChat.createdAt).toLocaleDateString() : "—"} /><ProfileRow label="Updated" value={activeChat.updatedAt ? new Date(activeChat.updatedAt).toLocaleDateString() : "—"} /></div></div>
-        <div className="border-b p-5"><h3 className="mb-3 text-xs font-semibold">WhatsApp consent</h3><div className="flex items-center justify-between gap-2"><span className="text-[11px] text-muted-foreground">Status</span><Badge variant="outline" className={consentStatus === "opted_in" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : consentStatus === "opted_out" ? "border-red-300 bg-red-50 text-red-800" : "border-amber-300 bg-amber-50 text-amber-900"}>{consentStatus === "opted_in" ? "Opted in" : consentStatus === "opted_out" ? "Opted out" : "Not recorded"}</Badge></div>{activeChat.consentSource && <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">Latest: {activeChat.consentSource}<br />Recorded by {activeChat.consentUpdatedBy ?? "team"}{activeChat.consentUpdatedAt ? ` · ${new Date(activeChat.consentUpdatedAt).toLocaleDateString()}` : ""}</p>}<Input value={consentSourceDraft} onChange={(event) => setConsentSourceDraft(event.target.value)} placeholder="Evidence/source (required)" className="mt-3 h-8 text-[11px]" /><Input value={consentWordingVersionDraft} onChange={(event) => setConsentWordingVersionDraft(event.target.value)} placeholder="Consent wording version (required)" className="mt-2 h-8 text-[11px]" /><p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">Record a form, message, or customer request as evidence.</p><div className="mt-2 grid grid-cols-2 gap-2"><Button variant="outline" size="sm" className="h-8 text-[10px]" onClick={() => void updateConsent("opted_in")}>Record opt-in</Button><Button variant="outline" size="sm" className="h-8 border-red-200 text-[10px] text-red-700 hover:bg-red-50" onClick={() => void updateConsent("opted_out")}>Record opt-out</Button></div>{activeChat.consentHistory && activeChat.consentHistory.length > 0 && <div className="mt-3 border-t pt-3"><p className="mb-2 text-[10px] font-medium text-muted-foreground">Consent history</p><div className="flex flex-col gap-2">{[...activeChat.consentHistory].reverse().map((record) => <div key={record.id} className="text-[10px] leading-relaxed"><span className={record.status === "opted_in" ? "font-medium text-emerald-800" : "font-medium text-red-800"}>{record.status === "opted_in" ? "Opt-in" : "Opt-out"}</span><span className="text-muted-foreground"> · {new Date(record.updatedAt).toLocaleString()} · {record.updatedBy}</span><p className="text-muted-foreground">{record.source}{record.wordingVersion ? ` · wording ${record.wordingVersion}` : ""}</p></div>)}</div></div>}</div>
-        <div className="border-b p-5"><div className="mb-3 flex items-center justify-between"><h3 className="text-xs font-semibold">Tags</h3><Button aria-label="Add a tag" onClick={() => setTagMenu((open) => !open)} className="rounded-md p-1 text-primary hover:bg-muted" type="button" variant="ghost"><Plus className="size-4" /></Button></div><div className="flex flex-wrap gap-2">{activeTags.map((tag) => <Badge key={tag} variant="secondary" className="gap-1 bg-[#f2f3f5] text-slate-700">{tag}<Button aria-label={`Remove ${tag} tag`} onClick={() => void updateTag(tag, "remove_tag")} className="rounded-full text-slate-500 hover:text-red-700" type="button" variant="ghost">×</Button></Badge>)}{activeTags.length === 0 && <span className="text-[11px] text-muted-foreground">No tags added</span>}</div>{tagMenu && <div className="mt-3 flex flex-col gap-2 rounded-lg border bg-white p-2"><form onSubmit={(event) => { event.preventDefault(); const tag = newTag.trim(); if (!tag || activeTags.includes(tag)) return; setNewTag(""); setTagMenu(false); void updateTag(tag, "add_tag"); }} className="flex gap-1.5"><Input aria-label="New tag" value={newTag} maxLength={32} onChange={(event) => setNewTag(event.target.value)} placeholder="Type a tag" className="h-7 text-[11px]" /><Button type="submit" size="sm" disabled={!newTag.trim()} className="h-7 px-2 text-[10px]">Add</Button></form><div className="flex flex-wrap gap-1.5">{availableTags.filter((tag) => !activeTags.includes(tag)).map((tag) => <Button key={tag} onClick={() => { setTagMenu(false); void updateTag(tag, "add_tag"); }} className="rounded-full border px-2 py-1 text-[10px] hover:bg-muted" type="button" variant="ghost">+ {tag}</Button>)}{availableTags.every((tag) => activeTags.includes(tag)) && <span className="px-1 py-1 text-[10px] text-muted-foreground">{availableTags.length ? "All tags used in this inbox are applied." : "No tags in use yet. Type one above."}</span>}</div></div>}</div>
-        <div className="p-5"><div className="mb-3 flex items-center justify-between"><Button type="button" variant="ghost" aria-expanded={timelineExpanded} onClick={() => setTimelineExpanded((expanded) => !expanded)} className="h-auto gap-1.5 p-0 text-xs font-semibold hover:bg-transparent">Customer timeline<ChevronDown className={`size-3.5 transition-transform ${timelineExpanded ? "rotate-180" : ""}`} /></Button><span className="text-[10px] text-muted-foreground">Across numbers</span></div>{timelineExpanded && <div><div className="mb-3 flex flex-wrap gap-1.5">{[...new Set(activeChat.messages.map((message) => message.senderNumberId).filter((id): id is string => Boolean(id)))].map((numberId) => { const number = channelNumbers.find((item) => item.id === numberId); const count = activeChat.messages.filter((message) => message.senderNumberId === numberId).length; return <Badge key={numberId} variant="outline" className="max-w-full truncate text-[9px]">{number?.label ?? "WhatsApp number"} · {count}</Badge>; })}</div><div className="max-h-80 space-y-3 overflow-y-auto pr-1">{customerTimeline.length ? customerTimeline.map((item) => { const number = item.senderNumberId ? channelNumbers.find((entry) => entry.id === item.senderNumberId) : undefined; const when = item.timestamp ? new Date(item.timestamp).toLocaleString() : item.displayTime ?? "Time unavailable"; return <div key={item.key} className="flex gap-2.5"><span className={`mt-1.5 size-2 shrink-0 rounded-full ${item.title.startsWith("Internal note") ? "bg-amber-500" : item.title.includes("opt-") ? "bg-violet-500" : "bg-primary"}`} /><div className="min-w-0 flex-1 border-b pb-2"><p className="text-[10px] font-semibold">{item.title}{number && <span className="font-normal text-muted-foreground"> · {number.label}</span>}</p><p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{when}{number ? ` · ${number.number}` : ""}</p>{item.messageId ? <Button type="button" onClick={() => { if (item.senderNumberId) { setViewThread({ contactId: activeChat.id, numberId: item.senderNumberId }); if (senderNumbersForChat.some((sender) => sender.id === item.senderNumberId)) setActiveNumberId(item.senderNumberId); } pendingMessageJumpId.current = item.messageId!; }} className="mt-1 block w-full truncate text-left text-[10px] text-foreground hover:text-primary" variant="ghost">{item.detail}</Button> : <p className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">{item.detail}</p>}</div></div>; }) : <p className="text-[11px] text-muted-foreground">No messages or CRM activity yet.</p>}</div></div>}</div>
-      </aside>}
-      <Dialog open={rerouteOpen} onOpenChange={(open) => { if (!rerouting) setRerouteOpen(open); }}><DialogContent><DialogHeader><DialogTitle>Reroute conversation</DialogTitle><DialogDescription>Choose the WhatsApp number for the new conversation thread. Existing messages stay under their original number; WhatsApp does not transfer chat history between numbers.</DialogDescription></DialogHeader>{activeChat && <><div className="rounded-lg border bg-muted/40 p-3 text-xs"><p className="text-muted-foreground">Current thread</p><p className="mt-1 font-medium">{channelNumbers.find((number) => number.id === currentRouteNumberId)?.label ?? "WhatsApp"} · {channelNumbers.find((number) => number.id === currentRouteNumberId)?.number ?? "—"}</p></div><label className="flex flex-col gap-1.5 text-xs font-medium">Customer-facing sender<SelectControl value={rerouteTargetId} onChange={(event) => setRerouteTargetId(event.target.value)} className="h-10 rounded-md border bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">Choose a number</option>{senderNumbersForChat.filter((number) => number.id !== currentRouteNumberId).map((number) => <option key={number.id} value={number.id}>{number.label} · {number.number}</option>)}</SelectControl></label>{rerouteTargetId && <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">Future WhatsApp messages will use {senderNumbers.find((number) => number.id === rerouteTargetId)?.label} ({senderNumbers.find((number) => number.id === rerouteTargetId)?.number}). This opens or reuses a separate number-specific thread. The customer may need to message this number to continue.</div>}</>}<DialogFooter><Button variant="outline" disabled={rerouting} onClick={() => setRerouteOpen(false)}>Cancel</Button><Button disabled={rerouting || !rerouteTargetId} onClick={() => void rerouteConversation()}>{rerouting ? "Rerouting…" : "Confirm reroute"}</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={helpOpen} onOpenChange={setHelpOpen}><DialogContent><DialogHeader><DialogTitle>Inbox help</DialogTitle><DialogDescription>Quick guide to working with WhatsApp conversations in Relay CRM.</DialogDescription></DialogHeader><div className="space-y-4 text-sm"><section><h3 className="font-medium">Replying to customers</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Choose an active sender number, confirm the customer has recorded WhatsApp opt-in, and use free-form replies only while the service window is open. Use an approved template when a template is required.</p></section><section><h3 className="font-medium">Changing the sender number</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">The CRM keeps all number-specific threads in the customer’s shared history. WhatsApp does not move a conversation between numbers, so the customer may need to message the new number to continue there.</p></section><section><h3 className="font-medium">Delivery status</h3><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Sent, delivered, read, and failed statuses come from WhatsApp. If the outcome is uncertain, check webhook health before trying again to avoid duplicate messages.</p></section><DialogFooter className="gap-2 sm:justify-between"><Button type="button" variant="outline" onClick={() => setHelpOpen(false)}>Close</Button>{(user.role === "Owner" || user.role === "Admin") && <Link href="/admin/numbers" onClick={() => setHelpOpen(false)}><Button type="button">Manage numbers</Button></Link>}</DialogFooter></div></DialogContent></Dialog>
-      {!showProfile && <Button onClick={() => setShowProfile(true)} className="fixed right-4 top-20 z-10 hidden rounded-lg border bg-white p-2 text-muted-foreground shadow-sm hover:bg-muted xl:block" aria-label="Show customer details" type="button" variant="ghost"><ChevronLeft className="size-4" /></Button>}
+      {/* 3. Right Chat Viewport */}
+      {activeChat ? (
+        <section className="flex min-w-0 flex-1 flex-col h-full bg-[#efeae2] relative">
+          {/* WhatsApp Chat Header */}
+          <header className="flex h-[60px] items-center justify-between border-b border-[#d1d7db] bg-[#f0f2f5] px-4 shrink-0 select-none">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setActiveId("")}
+                className="sm:hidden p-1 text-[#54656f] hover:text-[#111b21]"
+                aria-label="Back to chat list"
+              >
+                <ChevronLeft className="size-6" />
+              </button>
+              <Avatar className="size-10 shrink-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
+                <AvatarFallback className={`${activeChat.color} text-white font-medium text-xs`}>
+                  {activeChat.initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
+                <div className="flex items-center gap-2">
+                  <h2 className="truncate text-[15px] font-semibold text-[#111b21] leading-tight">{activeChat.name}</h2>
+                  <Badge variant="outline" className="hidden sm:inline-flex text-[10px] py-0 px-1.5 border-[#d1d7db] text-[#54656f]">
+                    {activeThreadState}
+                  </Badge>
+                </div>
+                <p className="truncate text-[12px] text-[#667781] leading-tight">
+                  {activeChat.phone}
+                </p>
+              </div>
+            </div>
+
+            {/* Header Right Actions */}
+            <div className="flex items-center gap-1.5">
+              {/* Sender Number Selector */}
+              <div className="relative">
+                <Button
+                  disabled={!senderNumbersForChat.length}
+                  onClick={() => setNumberMenu((open) => !open)}
+                  className="flex h-8 items-center gap-1.5 rounded-full border border-[#d1d7db] bg-white px-2.5 text-xs text-[#111b21] hover:bg-[#f5f6f6] shadow-2xs"
+                  type="button"
+                  variant="ghost"
+                >
+                  <span className={`size-2 rounded-full ${activeNumber ? "bg-[#25d366]" : "bg-slate-300"}`} />
+                  <span className="hidden sm:inline font-medium">
+                    {activeNumber?.label ?? "No number"}
+                  </span>
+                  <span className="text-[11px] text-[#667781]">
+                    {activeNumber?.number}
+                  </span>
+                  {senderNumbers.length > 0 && <ChevronDown className="size-3 text-[#667781]" />}
+                </Button>
+                {numberMenu && (
+                  <div className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#667781]">Switch active Twilio sender</p>
+                    {senderNumbersForChat.length ? (
+                      senderNumbersForChat.map((number) => (
+                        <button
+                          key={number.id}
+                          onClick={() => {
+                            setActiveNumberId(number.id);
+                            setViewThread({ contactId: activeChat.id, numberId: number.id });
+                            setNumberMenu(false);
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-[#f0f2f5] transition-colors"
+                          type="button"
+                        >
+                          <span className="size-2 rounded-full bg-[#25d366]" />
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-xs font-semibold text-[#111b21]">{number.label}</span>
+                            <span className="block text-[11px] text-[#667781]">{number.number}</span>
+                          </div>
+                          {activeNumber?.id === number.id && <Check className="size-4 text-[#00a884]" />}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-2.5 py-3 text-xs text-[#667781]">No active numbers available for this team.</p>
+                    )}
+                    {user.role !== "Agent" && senderNumbersForChat.length > 1 && (
+                      <div className="mt-1 border-t border-[#f0f2f5] pt-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { setNumberMenu(false); beginReroute(); }}
+                          className="w-full justify-start text-xs text-[#54656f] hover:bg-[#f0f2f5]"
+                        >
+                          <ArrowRightLeft className="size-3.5 mr-2 text-[#00a884]" /> Reroute conversation thread
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <IconButton label="Contact info" onClick={() => setShowProfile((open) => !open)}>
+                <Info className="size-5 text-[#54656f]" />
+              </IconButton>
+            </div>
+          </header>
+
+          {/* Notice Alert Banner */}
+          {notice && (
+            <div role="status" className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 z-10 shrink-0">
+              <Info className="size-4 shrink-0 text-amber-700" />
+              <span className="flex-1">{notice}</span>
+              <button onClick={() => setNotice("")} className="text-amber-700 hover:text-amber-900" type="button">
+                <X className="size-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Messages Viewport with WhatsApp Wallpaper */}
+          <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+            <MessageScroller className="flex-1 overflow-hidden relative">
+              <MessageScrollerViewport
+                aria-label={`Conversation with ${activeChat.name}`}
+                className="whatsapp-wallpaper wa-scrollbar h-full px-4 py-3 md:px-12"
+              >
+                <MessageScrollerContent className="mx-auto flex w-full max-w-3xl flex-col pb-4">
+                  {/* Subtle WhatsApp Encryption Banner */}
+                  <div className="my-2 flex justify-center">
+                    <span className="flex items-center gap-1.5 rounded-lg bg-[#ffeecd] px-3 py-1.5 text-center text-[11.5px] text-[#54656f] shadow-2xs">
+                      <Lock className="size-3 text-[#54656f] shrink-0" />
+                      Messages and media are end-to-end encrypted in your CRM timeline.
+                    </span>
+                  </div>
+
+                  {!activeChat.detailLoaded && (
+                    <div className="my-2 flex justify-center">
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs text-[#54656f] shadow-2xs">
+                        {loadingChatId === activeId ? "Loading conversation history…" : "Loading messages…"}
+                      </span>
+                    </div>
+                  )}
+
+                  {senderChanged && previousSender && activeNumber && (
+                    <div className="my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950 text-xs shadow-2xs">
+                      <div className="flex items-center gap-1.5 font-semibold text-amber-900">
+                        <Info className="size-4" /> This chat switched WhatsApp sender number
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
+                        Previous messages were sent from {previousSender.label} ({previousSender.number}). New replies will use {activeNumber.label} ({activeNumber.number}).
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Today date pill */}
+                  <div className="my-2 flex justify-center">
+                    <span className="rounded-md bg-white/95 px-3 py-0.5 text-[11px] font-medium text-[#54656f] shadow-2xs">
+                      Today
+                    </span>
+                  </div>
+
+                  {/* WhatsApp Messages */}
+                  {viewedThreadMessages.map((message, index) => (
+                    <InboxMessageRow
+                      key={message.id ?? `${activeChat.id}-${index}`}
+                      chat={activeChat}
+                      message={message}
+                      index={index}
+                      senderNumbers={channelNumbers}
+                      canRetry={adminCanRetryMessages}
+                      canPurge={adminCanPurgeMedia}
+                      sending={sending}
+                      onRetry={(messageId) => void retryFailedMessage(messageId)}
+                      onPurge={(messageId) => void purgeAttachment(messageId)}
+                    />
+                  ))}
+
+                  {viewedThreadMessages.length === 0 && (
+                    <div className="my-8 flex justify-center">
+                      <span className="rounded-lg bg-white/90 px-4 py-2 text-xs text-[#54656f] shadow-2xs text-center max-w-sm">
+                        No messages in this WhatsApp number thread yet. Start the conversation with an approved template below.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Internal Team Notes */}
+                  {activeChat.internalNotes?.map((note) => (
+                    <div key={note.id} className="mx-auto my-2 w-full max-w-lg rounded-lg border border-[#fbc02d]/40 bg-[#fff9c4] p-3 text-[#4a4a4a] shadow-2xs text-xs">
+                      <div className="flex items-center justify-between mb-1 font-semibold text-[11px] text-amber-900">
+                        <span>🔒 Internal note · Team only</span>
+                        <span className="font-normal text-[10px] text-amber-800">{note.author} · {note.time}</span>
+                      </div>
+                      <p className="whitespace-pre-wrap leading-relaxed">{note.text}</p>
+                    </div>
+                  ))}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton aria-label="Jump to latest message" />
+            </MessageScroller>
+          </MessageScrollerProvider>
+
+          {/* WhatsApp Composer */}
+          <div className="border-t border-[#d1d7db] bg-[#f0f2f5] px-4 py-2.5 shrink-0 flex flex-col gap-2">
+            {/* Top mode bar & 24hr window status */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setComposerMode("reply")}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    composerMode === "reply"
+                      ? "bg-[#00a884] text-white"
+                      : "bg-white text-[#54656f] hover:bg-[#e9edef]"
+                  }`}
+                >
+                  Reply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("template"); }}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    composerMode === "template"
+                      ? "bg-[#00a884] text-white"
+                      : "bg-white text-[#54656f] hover:bg-[#e9edef]"
+                  }`}
+                >
+                  Template
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("note"); }}
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                    composerMode === "note"
+                      ? "bg-amber-600 text-white"
+                      : "bg-white text-[#54656f] hover:bg-[#e9edef]"
+                  }`}
+                >
+                  Internal note
+                </button>
+              </div>
+
+              {composerMode === "reply" && replyAllowed && activeNumber && (
+                <div className="flex items-center gap-1 text-[11px] text-[#667781]">
+                  <Clock3 className="size-3 text-[#00a884]" />
+                  <span>
+                    {serviceWindowOpen
+                      ? `24hr window open${serviceWindowExpiresAt ? ` until ${new Date(serviceWindowExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
+                      : "Window closed · use template"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Warnings when reply not permitted */}
+            {!replyAllowed && composerMode !== "note" && (
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-900">
+                {consentStatus === "opted_out"
+                  ? "Customer opted out of WhatsApp messages."
+                  : "WhatsApp opt-in is not recorded yet. Record opt-in in Contact Info to enable sending."}
+              </div>
+            )}
+
+            {/* Attachment Preview Box */}
+            {composerMode === "reply" && (
+              <input
+                ref={attachmentInput}
+                type="file"
+                hidden
+                accept="image/jpeg,image/png,video/mp4,audio/aac,audio/mp4,audio/mpeg,audio/amr,audio/ogg,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                onChange={(event) => selectAttachment(event.target.files?.[0] ?? null)}
+              />
+            )}
+            {composerMode === "reply" && attachment && (
+              <div className="flex items-center gap-3 rounded-lg border border-[#d1d7db] bg-white p-2">
+                {attachmentPreview ? (
+                  <Image src={attachmentPreview} alt="Attachment preview" width={48} height={48} unoptimized className="size-12 rounded object-cover" />
+                ) : (
+                  <div className="flex size-12 items-center justify-center rounded bg-[#f0f2f5] text-[#00a884]">
+                    <Paperclip className="size-5" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-[#111b21]">{attachment.name}</p>
+                  <p className="text-[10px] text-[#667781]">{(attachment.size / (1024 * 1024)).toFixed(1)} MB</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { selectAttachment(null); if (attachmentInput.current) attachmentInput.current.value = ""; }}
+                  className="rounded p-1 text-[#8696a0] hover:text-[#111b21]"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Template Mode Form */}
+            {composerMode === "template" ? (
+              <div className="rounded-lg bg-white p-3 border border-[#d1d7db] flex flex-col gap-2">
+                <label className="text-xs font-semibold text-[#111b21]">
+                  Approved WhatsApp Template
+                  <SelectControl
+                    value={selectedTemplateId}
+                    onChange={(event) => {
+                      const id = event.target.value;
+                      setSelectedTemplateId(id);
+                      const item = approvedTemplates.find((template) => template.id === id);
+                      setTemplateParameters(Array.from({ length: templateVariables(templateBody(item)).length }, () => ""));
+                    }}
+                    className="mt-1 h-9 rounded-lg border border-[#d1d7db] bg-white px-3 text-xs w-full"
+                  >
+                    <option value="">Select a template</option>
+                    {approvedTemplates.map((template) => (
+                      <option key={template.id} value={template.id}>{template.name} · {template.language}</option>
+                    ))}
+                  </SelectControl>
+                </label>
+                {selectedTemplate && selectedTemplateParameterCount > 0 && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {templateParameters.map((value, index) => {
+                      const variable = selectedTemplateVariables[index];
+                      return (
+                        <label key={`${selectedTemplate.id}-${variable}`} className="text-xs font-medium text-[#54656f]">
+                          Value for {`{{${variable}}}`}
+                          <Input
+                            value={value}
+                            maxLength={1024}
+                            onChange={(event) => setTemplateParameters((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
+                            placeholder={`Value for ${variable}`}
+                            className="mt-1 h-8 text-xs bg-[#f0f2f5]"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {selectedTemplate && (
+                  <div className="rounded-lg bg-[#efeae2]/60 p-2.5 text-xs text-[#111b21]">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#667781] mb-1">
+                      Preview · {selectedTemplate.category}
+                    </span>
+                    {selectedTemplatePreview || "No text preview"}
+                  </div>
+                )}
+                <div className="flex justify-end pt-1">
+                  <Button
+                    onClick={() => void sendTemplateMessage()}
+                    disabled={sending || !selectedTemplate || !replyAllowed || !activeNumber || !activeSenderEligible || templateParameters.length !== selectedTemplateParameterCount || templateParameters.some((value) => !value.trim())}
+                    className="bg-[#00a884] hover:bg-[#008f6f] text-white rounded-full px-5 text-xs font-semibold"
+                  >
+                    {sending ? "Sending…" : "Send template"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* Reply / Note Main Bar */
+              <div className="flex items-end gap-2">
+                {/* Left WhatsApp Icons */}
+                <div className="flex items-center gap-0.5 pb-1 text-[#54656f]">
+                  <IconButton label="Emoji" onClick={() => setEmojiOpen((open) => !open)}>
+                    <Smile className="size-5" />
+                  </IconButton>
+                  <IconButton label="Attach file" onClick={() => attachmentInput.current?.click()}>
+                    <Paperclip className="size-5" />
+                  </IconButton>
+                  <IconButton label="Saved replies" onClick={() => { setEmojiOpen(false); setSavedReplyOpen((open) => !open); }}>
+                    <Sparkles className="size-5" />
+                  </IconButton>
+                </div>
+
+                {/* Textarea Input */}
+                <div className="flex-1 relative">
+                  <Textarea
+                    ref={draftInputRef}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    disabled={!activeChat.detailLoaded || (composerMode === "reply" && (!replyAllowed || !activeNumber || !activeSenderEligible))}
+                    onKeyDown={(event) => {
+                      if (composerMode === "reply" && (event.key === " " || event.key === "Tab")) {
+                        const match = /(?:^|\s);([a-z0-9_-]{1,24})$/i.exec(draft);
+                        const reply = match ? cannedReplies.find((item) => item.shortcut?.toLowerCase() === match[1].toLowerCase()) : undefined;
+                        if (match && reply) {
+                          event.preventDefault();
+                          const prefix = draft.slice(0, draft.length - match[0].length);
+                          setDraft(`${prefix}${prefix && !/\s$/.test(prefix) ? " " : ""}${personalizedReply(reply)}${event.key === " " ? " " : ""}`);
+                          setSavedReplyOpen(false);
+                          return;
+                        }
+                      }
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        if (composerMode === "note") void saveInternalNote();
+                        else void sendMessage();
+                      }
+                    }}
+                    placeholder={
+                      composerMode === "note"
+                        ? "Write private internal note for your team..."
+                        : !activeNumber
+                        ? "No active WhatsApp sender number selected"
+                        : replyAllowed
+                        ? "Type a message"
+                        : "Replies disabled until opt-in is recorded"
+                    }
+                    rows={1}
+                    className="w-full resize-none rounded-lg bg-white px-3.5 py-2.5 text-[14.5px] leading-relaxed text-[#111b21] placeholder:text-[#8696a0] shadow-2xs border-none focus:outline-none min-h-[42px] max-h-32"
+                  />
+
+                  {/* Emoji Picker Popup */}
+                  {emojiOpen && (
+                    <div className="absolute bottom-12 left-0 z-50 flex flex-wrap gap-1 rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
+                      {["😀", "😊", "👍", "❤️", "🎉", "🙏", "✅", "👋", "🙂", "🤔", "✨", "💬"].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => { setDraft((c) => `${c}${emoji}`); setEmojiOpen(false); draftInputRef.current?.focus(); }}
+                          className="size-9 rounded-lg text-lg hover:bg-[#f0f2f5] flex items-center justify-center"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Saved Replies Popup */}
+                  {savedReplyOpen && (
+                    <div className="absolute bottom-12 left-0 z-50 w-72 max-h-60 overflow-y-auto wa-scrollbar rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
+                      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#667781]">Quick Saved Replies</div>
+                      {cannedReplies.length ? (
+                        cannedReplies.map((reply) => (
+                          <button
+                            key={reply.id}
+                            type="button"
+                            onClick={() => insertSavedReply(reply)}
+                            className="w-full text-left rounded-lg px-2.5 py-2 hover:bg-[#f0f2f5] transition-colors"
+                          >
+                            <span className="block text-xs font-semibold text-[#111b21]">{reply.title}</span>
+                            <span className="block truncate text-[11px] text-[#667781]">{personalizedReply(reply)}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-2 py-3 text-xs text-[#667781]">No saved replies yet.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Circular WhatsApp Send Button */}
+                <button
+                  type="button"
+                  disabled={
+                    sending || !activeChat.detailLoaded ||
+                    (composerMode === "note"
+                      ? !draft.trim()
+                      : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || !serviceWindowOpen)
+                  }
+                  onClick={() => (composerMode === "note" ? void saveInternalNote() : void sendMessage())}
+                  className={`size-10 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-colors ${
+                    composerMode === "note"
+                      ? "bg-amber-600 hover:bg-amber-700 text-white"
+                      : "bg-[#00a884] hover:bg-[#008f6f] disabled:bg-[#d1d7db] text-white"
+                  }`}
+                  aria-label="Send"
+                >
+                  <Send className="size-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : (
+        /* WhatsApp Web Empty Intro Screen (when no chat is active) */
+        <section className="hidden md:flex flex-1 flex-col items-center justify-center bg-[#f0f2f5] p-8 text-center border-b-[6px] border-[#00a884] select-none h-full">
+          <div className="max-w-md flex flex-col items-center">
+            <div className="size-24 rounded-full bg-[#25d366]/15 flex items-center justify-center mb-6">
+              <MessageSquare className="size-12 text-[#25d366]" />
+            </div>
+            <h2 className="text-[28px] font-light text-[#41525d] tracking-tight">WhatsApp CRM Web</h2>
+            <p className="text-[14px] text-[#667781] mt-3 leading-relaxed">
+              Send and receive WhatsApp messages with your customers across connected Twilio numbers with unified timeline storage.
+            </p>
+            <div className="mt-6 flex items-center gap-3">
+              <Link href="/customers?new=1">
+                <Button className="bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xs">
+                  <Plus className="size-4 mr-1.5" /> Add customer
+                </Button>
+              </Link>
+              {adminCanPurgeMedia && (
+                <Link href="/admin/numbers">
+                  <Button variant="outline" className="border-[#d1d7db] text-[#111b21] bg-white hover:bg-[#f5f6f6] text-xs font-semibold px-4 py-2 rounded-full">
+                    <Smartphone className="size-4 mr-1.5" /> Manage numbers
+                  </Button>
+                </Link>
+              )}
+            </div>
+            <div className="mt-16 flex items-center gap-1.5 text-xs text-[#8696a0]">
+              <Lock className="size-3.5 text-[#8696a0]" />
+              <span>End-to-end encrypted CRM messaging</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 4. Customer Details Right Drawer (WhatsApp Contact Info style) */}
+      {showProfile && activeChat && (
+        <aside className="hidden w-[340px] xl:w-[360px] shrink-0 flex-col border-l border-[#d1d7db] bg-[#f0f2f5] xl:flex h-full overflow-y-auto wa-scrollbar">
+          {/* Header */}
+          <div className="flex h-[60px] items-center justify-between border-b border-[#d1d7db] bg-[#f0f2f5] px-4 shrink-0">
+            <span className="text-[15px] font-semibold text-[#111b21]">Contact info</span>
+            <button
+              onClick={() => setShowProfile(false)}
+              aria-label="Close"
+              className="rounded-full p-1 text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21]"
+              type="button"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+
+          {/* Profile Card */}
+          <div className="bg-white border-b border-[#d1d7db] p-6 flex flex-col items-center text-center">
+            <Avatar className="size-20">
+              <AvatarFallback className={`${activeChat.color} text-white font-medium text-2xl`}>
+                {activeChat.initials}
+              </AvatarFallback>
+            </Avatar>
+            <h3 className="mt-3 text-base font-semibold text-[#111b21]">{activeChat.name}</h3>
+            <p className="text-xs text-[#667781] mt-0.5">{activeChat.phone}</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!activeThreadExists}
+                className="h-8 text-xs border-[#d1d7db]"
+                onClick={() => void updateConversation(activeChat.id, activeThreadState === "Waiting" ? "reopen" : "wait", undefined, undefined, undefined, viewedThreadNumberId)}
+              >
+                <Clock3 className="size-3.5 mr-1 text-[#54656f]" />
+                {activeThreadState === "Waiting" ? "Reopen" : "Waiting"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!activeThreadExists}
+                className="h-8 text-xs border-[#d1d7db]"
+                onClick={() => void updateConversation(activeChat.id, activeThreadState === "Resolved" ? "reopen" : "resolve", undefined, undefined, undefined, viewedThreadNumberId)}
+              >
+                <Archive className="size-3.5 mr-1 text-[#54656f]" />
+                {activeThreadState === "Resolved" ? "Reopen" : "Resolve"}
+              </Button>
+            </div>
+          </div>
+
+          {/* WhatsApp Consent Card */}
+          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-[#111b21]">WhatsApp Consent</h4>
+              <Badge
+                variant="outline"
+                className={
+                  consentStatus === "opted_in"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    : consentStatus === "opted_out"
+                    ? "border-red-300 bg-red-50 text-red-800"
+                    : "border-amber-300 bg-amber-50 text-amber-900"
+                }
+              >
+                {consentStatus === "opted_in" ? "Opted in" : consentStatus === "opted_out" ? "Opted out" : "Not recorded"}
+              </Badge>
+            </div>
+            {activeChat.consentSource && (
+              <p className="mt-2 text-[11px] text-[#667781]">
+                Latest: {activeChat.consentSource}
+              </p>
+            )}
+            <Input
+              value={consentSourceDraft}
+              onChange={(e) => setConsentSourceDraft(e.target.value)}
+              placeholder="Consent source / link"
+              className="mt-2.5 h-8 text-xs bg-[#f0f2f5] border-none"
+            />
+            <Input
+              value={consentWordingVersionDraft}
+              onChange={(e) => setConsentWordingVersionDraft(e.target.value)}
+              placeholder="Wording version (e.g. v1.0)"
+              className="mt-1.5 h-8 text-xs bg-[#f0f2f5] border-none"
+            />
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                onClick={() => void updateConsent("opted_in")}
+              >
+                Record opt-in
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-red-300 text-red-700 hover:bg-red-50 text-xs"
+                onClick={() => void updateConsent("opted_out")}
+              >
+                Record opt-out
+              </Button>
+            </div>
+          </div>
+
+          {/* Routing & Assignment Card */}
+          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2 flex flex-col gap-2.5">
+            <h4 className="text-xs font-semibold text-[#111b21]">Assignment & Routing</h4>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#667781]">Assigned agent</span>
+              <SelectControl
+                aria-label="Assign conversation"
+                disabled={!activeThreadExists}
+                value={activeThreadAssigneeId ?? ""}
+                onChange={(event) => void updateConversation(activeChat.id, "assign", event.target.value || null, undefined, undefined, viewedThreadNumberId)}
+                className="h-8 max-w-[150px] rounded border border-[#d1d7db] bg-white px-2 text-xs"
+              >
+                <option value="">Unassigned</option>
+                {eligibleAssignees.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+              </SelectControl>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#667781]">Team</span>
+              <SelectControl
+                aria-label="Assign team"
+                disabled={!activeThreadExists}
+                value={activeThreadTeamId ?? ""}
+                onChange={(event) => void updateConversation(activeChat.id, "assign_team", undefined, undefined, event.target.value || null, viewedThreadNumberId)}
+                className="h-8 max-w-[150px] rounded border border-[#d1d7db] bg-white px-2 text-xs"
+              >
+                <option value="">No team</option>
+                {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </SelectControl>
+            </div>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-[#f0f2f5]">
+              <span className="text-[#667781]">Active sender</span>
+              <span className="font-medium text-[#111b21]">
+                {channelNumbers.find((n) => n.id === viewedThreadNumberId)?.label ?? activeNumber?.label ?? "WhatsApp"}
+              </span>
+            </div>
+          </div>
+
+          {/* Tags Card */}
+          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xs font-semibold text-[#111b21]">Tags</h4>
+              <button onClick={() => setTagMenu((o) => !o)} className="text-[#00a884] hover:text-[#008f6f]">
+                <Plus className="size-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {activeTags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="bg-[#f0f2f5] text-[#111b21] hover:bg-[#e9edef] gap-1 text-[11px]">
+                  {tag}
+                  <button type="button" onClick={() => void updateTag(tag, "remove_tag")} className="text-[#667781] hover:text-red-600">
+                    ×
+                  </button>
+                </Badge>
+              ))}
+              {activeTags.length === 0 && <span className="text-xs text-[#8696a0]">No tags</span>}
+            </div>
+            {tagMenu && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const t = newTag.trim();
+                  if (!t || activeTags.includes(t)) return;
+                  setNewTag("");
+                  setTagMenu(false);
+                  void updateTag(t, "add_tag");
+                }}
+                className="mt-2.5 flex gap-1.5"
+              >
+                <Input
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="New tag..."
+                  className="h-7 text-xs bg-[#f0f2f5] border-none"
+                />
+                <Button type="submit" size="sm" className="h-7 px-2.5 bg-[#00a884] text-white hover:bg-[#008f6f] text-xs">
+                  Add
+                </Button>
+              </form>
+            )}
+          </div>
+
+          {/* Customer Activity Timeline */}
+          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setTimelineExpanded((e) => !e)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-[#111b21]"
+              >
+                Customer Timeline
+                <ChevronDown className={`size-3.5 transition-transform ${timelineExpanded ? "rotate-180" : ""}`} />
+              </button>
+              <span className="text-[10px] text-[#8696a0]">Across numbers</span>
+            </div>
+            {timelineExpanded && (
+              <div className="max-h-72 overflow-y-auto wa-scrollbar space-y-2.5 pr-1 mt-2">
+                {customerTimeline.map((item) => (
+                  <div key={item.key} className="border-b border-[#f0f2f5] pb-2 text-xs">
+                    <div className="flex items-center justify-between text-[11px] font-medium text-[#111b21]">
+                      <span>{item.title}</span>
+                      <span className="text-[10px] text-[#8696a0]">{item.displayTime}</span>
+                    </div>
+                    <p className="mt-0.5 text-[#667781] text-[11px] leading-relaxed truncate">{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
+
+      {/* Reroute Dialog */}
+      <Dialog open={rerouteOpen} onOpenChange={(open) => { if (!rerouting) setRerouteOpen(open); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reroute conversation</DialogTitle>
+            <DialogDescription>
+              Choose the WhatsApp number for the new conversation thread. Existing messages stay under their original number.
+            </DialogDescription>
+          </DialogHeader>
+          {activeChat && (
+            <>
+              <div className="rounded-lg border bg-muted/40 p-3 text-xs">
+                <p className="text-muted-foreground">Current thread</p>
+                <p className="mt-1 font-medium">{channelNumbers.find((number) => number.id === currentRouteNumberId)?.label ?? "WhatsApp"} · {channelNumbers.find((number) => number.id === currentRouteNumberId)?.number ?? "—"}</p>
+              </div>
+              <label className="flex flex-col gap-1.5 text-xs font-medium">
+                Customer-facing sender
+                <SelectControl value={rerouteTargetId} onChange={(event) => setRerouteTargetId(event.target.value)} className="h-10 rounded-md border bg-white px-3 text-sm">
+                  <option value="">Choose a number</option>
+                  {senderNumbersForChat.filter((number) => number.id !== currentRouteNumberId).map((number) => (
+                    <option key={number.id} value={number.id}>{number.label} · {number.number}</option>
+                  ))}
+                </SelectControl>
+              </label>
+            </>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={rerouting} onClick={() => setRerouteOpen(false)}>Cancel</Button>
+            <Button disabled={rerouting || !rerouteTargetId} onClick={() => void rerouteConversation()} className="bg-[#00a884] text-white hover:bg-[#008f6f]">
+              {rerouting ? "Rerouting…" : "Confirm reroute"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Help Dialog */}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>WhatsApp CRM Help</DialogTitle>
+            <DialogDescription>
+              Quick guide to multi-number Twilio WhatsApp messaging.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-xs text-[#54656f]">
+            <section>
+              <h3 className="font-semibold text-[#111b21]">Customer Service Window</h3>
+              <p className="mt-1 leading-relaxed">
+                Free-form replies are allowed within 24 hours of the customer’s latest message. When the window expires, you must send an approved template to re-open the conversation.
+              </p>
+            </section>
+            <section>
+              <h3 className="font-semibold text-[#111b21]">Multi-Number Routing</h3>
+              <p className="mt-1 leading-relaxed">
+                You can switch between any of your configured Twilio WhatsApp numbers using the selector in the top bar. History remains organized per thread in the customer timeline.
+              </p>
+            </section>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setHelpOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
 
 function RailLink({ children, label, active = false, href }: { children: React.ReactNode; label: string; active?: boolean; href: string }) {
-  return <Link href={href} aria-label={label} title={label} className={`relative flex size-10 items-center justify-center rounded-xl transition-colors ${active ? "bg-[#e7f1ea] text-primary" : "text-slate-500 hover:bg-muted hover:text-slate-900"}`}>{children}<span className="sr-only">{label}</span></Link>;
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      className={`relative flex size-10 items-center justify-center rounded-xl transition-colors ${
+        active ? "bg-[#d9fdd3] text-[#008069]" : "text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21]"
+      }`}
+    >
+      {children}
+      <span className="sr-only">{label}</span>
+    </Link>
+  );
 }
 
 function RailButton({ children, label, active = false, onClick }: { children: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
-  return <Button aria-label={label} title={label} onClick={onClick} className={`relative flex size-10 items-center justify-center rounded-xl transition-colors ${active ? "bg-[#e7f1ea] text-primary" : "text-slate-500 hover:bg-muted hover:text-slate-900"}`} type="button" variant="ghost">{children}<span className="sr-only">{label}</span></Button>;
+  return (
+    <Button
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`relative flex size-10 items-center justify-center rounded-xl transition-colors ${
+        active ? "bg-[#d9fdd3] text-[#008069]" : "text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21]"
+      }`}
+      type="button"
+      variant="ghost"
+    >
+      {children}
+      <span className="sr-only">{label}</span>
+    </Button>
+  );
 }
 
 function ProfileRow({ label, value, dot }: { label: string; value: string; dot?: string }) {
