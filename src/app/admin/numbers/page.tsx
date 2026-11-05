@@ -1,12 +1,14 @@
 import { getCrmSnapshot } from "@/lib/crm-store";
 import { NumberAdmin, type MetaConnectionCheck } from "@/components/number-admin";
 import { getPostgresPool, getWorkspaceId } from "@/lib/postgres-pool";
+import { listTwilioAccounts } from "@/lib/twilio-credentials";
 import type { QueryResultRow } from "pg";
 
 export const dynamic = "force-dynamic";
 
 export default async function NumbersPage() {
   const snapshot = await getCrmSnapshot();
+  const twilioAccounts = await listTwilioAccounts();
   let autoFailoverEnabled = false;
   let failoverMaxAttempts = 1;
   let failoverCooldownMinutes = 60;
@@ -41,5 +43,17 @@ export default async function NumbersPage() {
       }
     } catch { /* Migration or database setup may not be complete yet. */ }
   }
-  return <NumberAdmin initialNumbers={snapshot.numbers} initialConnectionChecks={initialConnectionChecks} liveSendingEnabled={Boolean(process.env.DATABASE_URL && (process.env.META_ACCESS_TOKEN || connectedAccountAvailable))} initialAutoFailoverEnabled={autoFailoverEnabled} initialNotificationTemplateId={failoverNotificationTemplateId} initialFailoverMaxAttempts={failoverMaxAttempts} initialFailoverCooldownMinutes={failoverCooldownMinutes} initialFailoverRequiresApproval={failoverRequiresApproval} />;
+  return (
+    <NumberAdmin
+      initialNumbers={snapshot.numbers}
+      initialTwilioAccounts={twilioAccounts}
+      initialConnectionChecks={initialConnectionChecks}
+      liveSendingEnabled={Boolean(process.env.DATABASE_URL && (process.env.META_ACCESS_TOKEN || connectedAccountAvailable || twilioAccounts.length > 0 || process.env.TWILIO_ACCOUNT_SID))}
+      initialAutoFailoverEnabled={autoFailoverEnabled}
+      initialNotificationTemplateId={failoverNotificationTemplateId}
+      initialFailoverMaxAttempts={failoverMaxAttempts}
+      initialFailoverCooldownMinutes={failoverCooldownMinutes}
+      initialFailoverRequiresApproval={failoverRequiresApproval}
+    />
+  );
 }

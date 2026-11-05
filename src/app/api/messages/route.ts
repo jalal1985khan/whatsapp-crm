@@ -3,6 +3,8 @@ import { addLocalMessage } from "@/lib/crm-store";
 import { getSession } from "@/lib/auth";
 import { sendCloudMediaMessage, sendCloudTemplateMessage, sendCloudTextMessage } from "@/lib/meta-whatsapp";
 import { metaTokenForNumber } from "@/lib/meta-credentials";
+import { getTwilioCredentialsForNumber } from "@/lib/twilio-credentials";
+import { sendTwilioTextMessage } from "@/lib/twilio-whatsapp";
 import { canSendOnConversation } from "@/lib/inbox-access";
 import { getScopedInboxSnapshot } from "@/lib/inbox-access";
 
@@ -43,6 +45,26 @@ export async function POST(request: NextRequest) {
   if (!isTemplate && !body.text?.trim()) return NextResponse.json({ error: "Enter a message." }, { status: 400 });
   if (!isTemplate && body.text!.trim().length > 4096) return NextResponse.json({ error: "Text messages must be 4,096 characters or fewer." }, { status: 400 });
   try {
+    const twilioCreds = body.senderNumberId ? await getTwilioCredentialsForNumber(body.senderNumberId) : null;
+    if (twilioCreds) {
+      if (!body.idempotencyKey || body.idempotencyKey.length > 128) return NextResponse.json({ error: "A message idempotency key is required for live WhatsApp sending." }, { status: 400 });
+      const sent = await sendTwilioTextMessage({
+        contactId: body.chatId,
+        senderNumberId: body.senderNumberId,
+        text: body.text!.trim(),
+        idempotencyKey: body.idempotencyKey,
+      });
+      const snapshot = await getScopedInboxSnapshot(session, [body.chatId]);
+      const chat = snapshot.chats.find((item) => item.id === body.chatId);
+      return NextResponse.json({
+        chat,
+        message: chat?.messages.find((item) => item.id === sent.id),
+        delivery: "whatsapp",
+        status: sent.status,
+        duplicate: sent.duplicate,
+      }, { headers: { "Cache-Control": "no-store" } });
+    }
+
     const accessToken = body.senderNumberId ? await metaTokenForNumber(body.senderNumberId) : null;
     if (accessToken) {
       if (!body.idempotencyKey || body.idempotencyKey.length > 128) return NextResponse.json({ error: "A message idempotency key is required for live WhatsApp sending." }, { status: 400 });

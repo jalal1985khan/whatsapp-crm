@@ -60,8 +60,10 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
   const userResult = await client.query<Row>(`SELECT u."id", u."email", u."passwordHash", u."name", u."active", wu."role"
       FROM "WorkspaceUser" wu JOIN "User" u ON u."id" = wu."userId"
       WHERE wu."workspaceId" = $1 ORDER BY u."createdAt"`, [workspaceId]);
-  const numberResult = await client.query<Row>(`SELECT n."id", n."label", n."e164Number", n."displayName", n."metaPhoneNumberId", n."metaWabaId", n."approvedByUserId", n."qualitySignal", n."allowedTeamIds", n."routingPriority", n."lastStatusEventAt", n."state", n."createdAt", n."whatsappConnectionId", wc."status" AS "metaConnectionStatus", wc."tokenExpiresAt" AS "metaTokenExpiresAt"
-      FROM "ChannelNumber" n LEFT JOIN "WhatsAppConnection" wc ON wc."id"=n."whatsappConnectionId" AND wc."workspaceId"=n."workspaceId"
+  const numberResult = await client.query<Row>(`SELECT n."id", n."label", n."e164Number", n."displayName", n."metaPhoneNumberId", n."metaWabaId", n."approvedByUserId", n."qualitySignal", n."allowedTeamIds", n."routingPriority", n."lastStatusEventAt", n."state", n."createdAt", n."whatsappConnectionId", n."provider", n."twilioAccountId", n."twilioAccountSid", ta."friendlyName" AS "twilioAccountName", ta."accountSid" AS "taAccountSid", wc."status" AS "metaConnectionStatus", wc."tokenExpiresAt" AS "metaTokenExpiresAt"
+      FROM "ChannelNumber" n
+      LEFT JOIN "WhatsAppConnection" wc ON wc."id"=n."whatsappConnectionId" AND wc."workspaceId"=n."workspaceId"
+      LEFT JOIN "TwilioAccount" ta ON ta."id"=n."twilioAccountId" AND ta."workspaceId"=n."workspaceId"
       WHERE n."workspaceId" = $1 ORDER BY n."routingPriority", n."createdAt"`, [workspaceId]);
   const contactResult = await client.query<Row>(`SELECT c."id",c."displayName",c."primaryPhone",c."email",c."source",c."ownerUserId",owner."name" AS "ownerName",c."customFields",c."tags",c."createdAt",c."updatedAt",c."legalHoldAt",c."legalHoldReason" FROM "Contact" c LEFT JOIN "User" owner ON owner."id"=c."ownerUserId"
       WHERE c."workspaceId" = $1 AND c."mergedIntoContactId" IS NULL${contactFilter} ORDER BY COALESCE((SELECT MAX(conv."lastMessageAt") FROM "Conversation" conv WHERE conv."contactId" = c."id"), c."createdAt") DESC`, contactParams);
@@ -90,7 +92,12 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
       : expiresAt && expiresAt.getTime() <= now + 7 * 24 * 60 * 60 * 1000 ? "EXPIRING"
       : "CONNECTED";
     return {
-      id: string(row.id), label: string(row.label), number: string(row.e164Number), displayName: nullableString(row.displayName), metaPhoneNumberId: nullableString(row.metaPhoneNumberId), metaWabaId: nullableString(row.metaWabaId), qualitySignal: nullableString(row.qualitySignal), allowedTeamIds: Array.isArray(row.allowedTeamIds) ? row.allowedTeamIds.map(String) : [], routingPriority: Number(row.routingPriority), lastStatusEventAt: row.lastStatusEventAt == null ? undefined : date(row.lastStatusEventAt).toISOString(), metaConnectionStatus: connectionStatus, metaTokenExpiresAt: expiresAt?.toISOString() ?? null, state: String(row.state) === "ACTIVE" && !row.approvedByUserId ? "Pending approval" : stateFromDb(row.state), createdAt: date(row.createdAt).toISOString(),
+      id: string(row.id), label: string(row.label), number: string(row.e164Number), displayName: nullableString(row.displayName),
+      provider: (row.provider as "TWILIO" | "META") || (row.metaPhoneNumberId ? "META" : "TWILIO"),
+      twilioAccountId: nullableString(row.twilioAccountId),
+      twilioAccountSid: nullableString(row.twilioAccountSid || row.taAccountSid),
+      twilioAccountName: nullableString(row.twilioAccountName),
+      metaPhoneNumberId: nullableString(row.metaPhoneNumberId), metaWabaId: nullableString(row.metaWabaId), qualitySignal: nullableString(row.qualitySignal), allowedTeamIds: Array.isArray(row.allowedTeamIds) ? row.allowedTeamIds.map(String) : [], routingPriority: Number(row.routingPriority), lastStatusEventAt: row.lastStatusEventAt == null ? undefined : date(row.lastStatusEventAt).toISOString(), metaConnectionStatus: connectionStatus, metaTokenExpiresAt: expiresAt?.toISOString() ?? null, state: String(row.state) === "ACTIVE" && !row.approvedByUserId ? "Pending approval" : stateFromDb(row.state), createdAt: date(row.createdAt).toISOString(),
     };
   });
   const conversationsByContact = new Map<string, Row[]>();
@@ -379,8 +386,11 @@ export async function createPostgresContact(name: string, phone: string, ownerUs
     await client.query(`INSERT INTO "ContactIdentifier" ("id","workspaceId","contactId","type","normalizedValue","verified","source","createdAt") VALUES ($1,$2,$3,'PHONE',$4,false,'MANUAL_ENTRY',CURRENT_TIMESTAMP) ON CONFLICT ("contactId","type","normalizedValue") DO NOTHING`, [randomUUID(), workspaceId, contactId, normalized]);
     await client.query(`INSERT INTO "AuditEvent" ("id","workspaceId","actorUserId","action","targetType","targetId","details","createdAt") VALUES ($1,$2,$3,'CONTACT_CREATED','CONTACT',$4,$5::jsonb,CURRENT_TIMESTAMP)`, [randomUUID(), workspaceId, ownerUserId ?? null, contactId, JSON.stringify({ source: "MANUAL_ENTRY" })]);
     const rules = await client.query<Row>(`SELECT r."channelOrder" FROM "RoutingRule" r JOIN "Contact" c ON c."id"=$2 AND c."workspaceId"=r."workspaceId" WHERE r."workspaceId"=$1 AND r."enabled"=true AND COALESCE(r."conditions"->>'teamId','')='' AND (COALESCE(r."conditions"->>'phonePrefix','')='' OR $3 LIKE (r."conditions"->>'phonePrefix') || '%') AND (COALESCE(r."conditions"->>'segmentId','')='' OR EXISTS (SELECT 1 FROM "CustomerSegment" seg WHERE seg."workspaceId"=r."workspaceId" AND seg."id"=r."conditions"->>'segmentId' AND (COALESCE(seg."filters"->>'tag','')='' OR c."tags" @> ARRAY[seg."filters"->>'tag']) AND (COALESCE(seg."filters"->>'source','')='' OR lower(COALESCE(c."source",''))=lower(seg."filters"->>'source')) AND (COALESCE(seg."filters"->>'ownerUserId','')='' OR c."ownerUserId"=seg."filters"->>'ownerUserId') AND (COALESCE(seg."filters"->>'consent','any')='any' OR COALESCE((SELECT cr."status"::text FROM "ConsentRecord" cr WHERE cr."workspaceId"=c."workspaceId" AND cr."contactId"=c."id" AND cr."channel"='WHATSAPP' AND cr."scope"='WHATSAPP_MESSAGING' ORDER BY cr."capturedAt" DESC,cr."id" DESC LIMIT 1),'UNKNOWN')=CASE seg."filters"->>'consent' WHEN 'opted_in' THEN 'OPTED_IN' WHEN 'opted_out' THEN 'OPTED_OUT' ELSE 'UNKNOWN' END))) ORDER BY (r."conditions" ? 'segmentId') DESC,length(COALESCE(r."conditions"->>'phonePrefix','')) DESC,r."priority",r."createdAt" LIMIT 1`, [workspaceId, contactId, normalized.replace(/\D/g, "")]);
-    const activeNumbers = await client.query<Row>(`SELECT n."id" FROM "ChannelNumber" n WHERE n."workspaceId"=$1 AND n."state"='ACTIVE' AND n."approvedByUserId" IS NOT NULL AND n."metaPhoneNumberId" IS NOT NULL
-      AND ((n."whatsappConnectionId" IS NULL AND $2::boolean) OR EXISTS (SELECT 1 FROM "WhatsAppConnection" connection WHERE connection."id"=n."whatsappConnectionId" AND connection."workspaceId"=n."workspaceId" AND connection."status"='ACTIVE' AND (connection."tokenExpiresAt" IS NULL OR connection."tokenExpiresAt">CURRENT_TIMESTAMP)))
+    const activeNumbers = await client.query<Row>(`SELECT n."id" FROM "ChannelNumber" n WHERE n."workspaceId"=$1 AND n."state"='ACTIVE' AND n."approvedByUserId" IS NOT NULL
+      AND (
+        (n."provider" = 'TWILIO' OR n."twilioAccountId" IS NOT NULL OR n."twilioAccountSid" IS NOT NULL)
+        OR (n."metaPhoneNumberId" IS NOT NULL AND ((n."whatsappConnectionId" IS NULL AND $2::boolean) OR EXISTS (SELECT 1 FROM "WhatsAppConnection" connection WHERE connection."id"=n."whatsappConnectionId" AND connection."workspaceId"=n."workspaceId" AND connection."status"='ACTIVE' AND (connection."tokenExpiresAt" IS NULL OR connection."tokenExpiresAt">CURRENT_TIMESTAMP))))
+      )
       ORDER BY n."routingPriority",n."createdAt"`, [workspaceId, Boolean(process.env.META_ACCESS_TOKEN)]);
     const activeIds = new Set(activeNumbers.rows.map((row) => String(row.id)));
     const hasMatchingRule = rules.rows.length > 0;

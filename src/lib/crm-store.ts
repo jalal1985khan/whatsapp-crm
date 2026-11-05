@@ -9,6 +9,10 @@ export type ChannelNumber = {
   id: string;
   label: string;
   number: string;
+  provider?: "TWILIO" | "META";
+  twilioAccountId?: string;
+  twilioAccountSid?: string;
+  twilioAccountName?: string;
   metaPhoneNumberId?: string;
   metaWabaId?: string;
   displayName?: string;
@@ -158,7 +162,7 @@ export async function getCrmSnapshot(contactIds?: string[]) {
   const store = await readStore(contactIds);
   return {
     chats: store.chats,
-    numbers: [...store.numbers].sort((a, b) => (a.routingPriority ?? store.numbers.indexOf(a) * 100) - (b.routingPriority ?? store.numbers.indexOf(b) * 100)).map(({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds, routingPriority, lastStatusEventAt }) => ({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds: allowedTeamIds ?? [], routingPriority, lastStatusEventAt })),
+    numbers: [...store.numbers].sort((a, b) => (a.routingPriority ?? store.numbers.indexOf(a) * 100) - (b.routingPriority ?? store.numbers.indexOf(b) * 100)).map(({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds, routingPriority, lastStatusEventAt, provider, twilioAccountId, twilioAccountSid, twilioAccountName }) => ({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds: allowedTeamIds ?? [], routingPriority, lastStatusEventAt, provider, twilioAccountId, twilioAccountSid, twilioAccountName })),
     team: store.users.filter((user) => user.active).map(({ id, name, email, role }) => ({ id, name, email, role })),
   };
 }

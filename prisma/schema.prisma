@@ -96,6 +96,7 @@ model Workspace {
   consents     ConsentRecord[]
   contactIdentifiers ContactIdentifier[]
   webhookEvents WebhookEvent[]
+  twilioAccounts TwilioAccount[]
   routingRules RoutingRule[]
   failoverEvents FailoverEvent[]
   internalNotes InternalNote[]
@@ -249,6 +250,10 @@ model ChannelNumber {
   state                 NumberState     @default(PENDING)
   metaPhoneNumberId     String?
   metaWabaId            String?
+  provider              String          @default("TWILIO")
+  twilioAccountId       String?
+  twilioAccountSid      String?
+  twilioAuthTokenEncrypted String?
   qualitySignal         String?
   connectionRef         String?
   whatsappConnectionId String?
@@ -261,6 +266,7 @@ model ChannelNumber {
   updatedAt             DateTime        @updatedAt
   workspace             Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   whatsappConnection   WhatsAppConnection? @relation(fields: [whatsappConnectionId], references: [id], onDelete: SetNull)
+  twilioAccount        TwilioAccount?  @relation(fields: [twilioAccountId], references: [id], onDelete: SetNull)
   conversations         Conversation[]
   messages              Message[]
   webhookEvents         WebhookEvent[]
@@ -288,6 +294,21 @@ model WhatsAppConnection {
 
   @@unique([workspaceId, wabaId])
   @@index([workspaceId, status])
+}
+
+model TwilioAccount {
+  id                 String          @id @default(cuid())
+  workspaceId        String
+  friendlyName       String
+  accountSid         String
+  authTokenEncrypted String
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channelNumbers     ChannelNumber[]
+
+  @@unique([workspaceId, accountSid])
+  @@index([workspaceId])
 }
 
 model Contact {

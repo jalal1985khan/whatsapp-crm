@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const SIGNED_META_WEBHOOK = "/api/webhooks/whatsapp";
+const SIGNED_TWILIO_WEBHOOK = "/api/webhooks/twilio";
 
 export function proxy(request: NextRequest) {
-  if (SAFE_METHODS.has(request.method) || request.nextUrl.pathname === SIGNED_META_WEBHOOK) return NextResponse.next();
+  if (
+    SAFE_METHODS.has(request.method) ||
+    request.nextUrl.pathname === SIGNED_META_WEBHOOK ||
+    request.nextUrl.pathname.startsWith(SIGNED_TWILIO_WEBHOOK)
+  ) return NextResponse.next();
 
   const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
   if (fetchSite === "cross-site") return csrfDenied();

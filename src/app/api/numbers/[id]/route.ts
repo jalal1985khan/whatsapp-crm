@@ -24,7 +24,8 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const snapshotBefore = await import("@/lib/crm-store").then(({ getCrmSnapshot }) => getCrmSnapshot());
     const beforeNumber = snapshotBefore.numbers.find((item) => item.id === id);
     if (!beforeNumber) return NextResponse.json({ error: "Number not found." }, { status: 404 });
-    const needsMetaRevalidation = Boolean(process.env.DATABASE_URL && (body.action === "approve" || body.action === "activate"));
+    const isMetaNumber = beforeNumber.provider === "META" || Boolean(beforeNumber.metaPhoneNumberId && beforeNumber.metaWabaId);
+    const needsMetaRevalidation = Boolean(isMetaNumber && process.env.DATABASE_URL && (body.action === "approve" || body.action === "activate"));
     let activationCheck: MetaNumberCheck | null = null;
     if (needsMetaRevalidation) {
       activationCheck = await checkMetaNumberIdentity({ id, e164Number: beforeNumber.number, metaPhoneNumberId: beforeNumber.metaPhoneNumberId ?? null, metaWabaId: beforeNumber.metaWabaId ?? null });
@@ -54,7 +55,7 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
           await client.query("ROLLBACK");
           return NextResponse.json({ error: body.action === "approve" ? "Only a pending number can be approved." : body.action === "activate" ? "Only a paused or disconnected number can be reactivated." : body.action === "pause" ? "Only an active or degraded number can be paused." : "This number is already archived." }, { status: 409 });
         }
-        if ((body.action === "approve" || body.action === "activate") && (!row.metaPhoneNumberId || !row.metaWabaId)) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Reconnect this number to its Meta phone number ID and WABA before activating it." }, { status: 409 }); }
+        if ((body.action === "approve" || body.action === "activate") && isMetaNumber && (!row.metaPhoneNumberId || !row.metaWabaId)) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Reconnect this number to its Meta phone number ID and WABA before activating it." }, { status: 409 }); }
         if (body.action === "activate" && !row.approvedByUserId) { await client.query("ROLLBACK"); return NextResponse.json({ error: "This number has not been approved in the CRM workspace yet." }, { status: 409 }); }
         const nextState = body.action === "pause" ? "PAUSED" : body.action === "archive" ? "ARCHIVED" : "ACTIVE";
         const updated = body.action === "approve"

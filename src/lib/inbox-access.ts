@@ -89,7 +89,7 @@ export async function getScopedInboxSnapshot(actor: InboxActor, requestedContact
   const eligibility = await getPostgresPool().query<{ contactId: string; channelNumberId: string }>(
     `SELECT contact."id" AS "contactId",number."id" AS "channelNumberId"
      FROM "Contact" contact
-     JOIN "ChannelNumber" number ON number."workspaceId"=contact."workspaceId" AND number."state"='ACTIVE' AND number."approvedByUserId" IS NOT NULL AND number."metaPhoneNumberId" IS NOT NULL
+     JOIN "ChannelNumber" number ON number."workspaceId"=contact."workspaceId" AND number."state"='ACTIVE' AND number."approvedByUserId" IS NOT NULL AND (number."metaPhoneNumberId" IS NOT NULL OR number."provider" = 'TWILIO' OR number."twilioAccountId" IS NOT NULL OR number."twilioAccountSid" IS NOT NULL)
      LEFT JOIN LATERAL (SELECT conversation."id",conversation."assignedTeamId" FROM "Conversation" conversation WHERE conversation."workspaceId"=contact."workspaceId" AND conversation."contactId"=contact."id" AND conversation."channelNumberId"=number."id" LIMIT 1) target ON TRUE
      LEFT JOIN LATERAL (SELECT conversation."assignedTeamId" FROM "Conversation" conversation WHERE conversation."workspaceId"=contact."workspaceId" AND conversation."contactId"=contact."id" ORDER BY conversation."lastMessageAt" DESC,conversation."updatedAt" DESC LIMIT 1) latest ON TRUE
      LEFT JOIN LATERAL (
