@@ -18,12 +18,13 @@ export default async function Home() {
     } catch { /* Saved replies remain optional until the migration is applied. */ }
   }
   const snapshot = await getCrmSnapshot().catch(() => null);
-  const initialNumbers = snapshot?.numbers?.map(({ id, label, number, state, allowedTeamIds }) => ({
+  const initialNumbers = snapshot?.numbers?.map(({ id, label, number, state, allowedTeamIds, provider }) => ({
     id,
     label,
     number,
     state,
     allowedTeamIds,
+    provider,
   })) ?? [];
 
   return (

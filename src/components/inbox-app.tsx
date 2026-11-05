@@ -7,7 +7,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  Archive, ArrowRightLeft, ArrowUpRight, AtSign, BarChart3, Bell, Check, CheckCheck,
+  AlertCircle, Archive, ArrowRightLeft, ArrowUpRight, AtSign, BarChart3, Bell, Check, CheckCheck, CheckCircle,
   ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Filter,
   Info, Key, Lock, LogOut, MessageCircle, MessageSquare, MoreHorizontal, MoreVertical, Paperclip, Plus, Search, Send,
   Settings2, ShieldCheck, Smartphone, Smile, Sparkles, Users, Wifi, X,
@@ -74,7 +74,7 @@ type Chat = {
   messages: { id?: string; text: string; time: string; createdAt?: string; mine?: boolean; senderNumberId?: string; status?: "local" | "queued" | "sent" | "delivered" | "read" | "failed" | "unknown"; failureClass?: string; media?: { type: string; mimeType?: string; filename?: string; size?: number; caption?: string; mediaId?: string; stored?: boolean; storageStatus?: string; messageId?: string; accessUrl?: string } }[];
 };
 
-type SenderNumber = { id: string; label: string; number: string; state: string; allowedTeamIds?: string[] };
+type SenderNumber = { id: string; label: string; number: string; state: string; allowedTeamIds?: string[]; provider?: "TWILIO" | "META"; metaPhoneNumberId?: string };
 type TeamMember = { id: string; name: string; email: string; role: string };
 type Team = { id: string; name: string; members: TeamMember[] };
 type SyncedTemplate = { id: string; name: string; language: string; category: string; status: string; components: { type?: string; text?: string }[] };
@@ -354,6 +354,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
     : latestInboundForSender?.createdAt ? new Date(new Date(latestInboundForSender.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString() : null;
   const serviceWindowOpen = Boolean(serviceWindowExpiresAt && new Date(serviceWindowExpiresAt).getTime() > windowCheckTime);
   const activeSenderEligible = Boolean(activeNumber);
+  const isTwilioSender = activeNumber?.provider === "TWILIO" || (Boolean(activeNumber) && !activeNumber?.metaPhoneNumberId);
   const eligibleAssignees = activeThreadTeamId ? teams.find((team) => team.id === activeThreadTeamId)?.members ?? [] : teamMembers;
   const activeTags = activeChat?.tags ?? (activeChat?.label ? [activeChat.label] : []);
   const messageSenderIds = (activeChat?.messages ?? []).map((message) => message.senderNumberId).filter((id): id is string => Boolean(id));
@@ -777,15 +778,21 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
   async function updateConsent(status: "opted_in" | "opted_out") {
     if (!activeChat?.detailLoaded) return;
-    if (!consentSourceDraft.trim()) { setNotice("Add where or how the customer gave consent before saving."); return; }
-    if (!consentWordingVersionDraft.trim()) { setNotice("Add the consent wording version before saving."); return; }
+    const source = consentSourceDraft.trim() || (status === "opted_in" ? "Direct agent verification" : "Customer requested opt-out");
+    const wordingVersion = consentWordingVersionDraft.trim() || "v1.0";
     try {
-      const response = await fetch(`/api/contacts/${activeChat.id}/consent`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, source: consentSourceDraft, wordingVersion: consentWordingVersionDraft }) });
+      const response = await fetch(`/api/contacts/${activeChat.id}/consent`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, source, wordingVersion }),
+      });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not update consent.");
       setChats((current) => current.map((chat) => chat.id === activeChat.id ? { ...chat, ...data.chat, detailLoaded: true, matchesFilter: chat.matchesFilter } : chat));
       setConsentSourceDraft("");
-      setNotice(status === "opted_in" ? "Customer opt-in recorded." : "Customer opt-out recorded. WhatsApp replies are blocked.");
+      setConsentWordingVersionDraft("");
+      setNotice(status === "opted_in" ? "Customer opt-in recorded. Messaging is enabled." : "Customer opt-out recorded. WhatsApp replies are blocked.");
+      window.setTimeout(() => setNotice(""), 4000);
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Could not update consent."); }
   }
 
@@ -1288,7 +1295,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   {viewedThreadMessages.length === 0 && (
                     <div className="my-8 flex justify-center">
                       <span className="rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground shadow-2xs text-center max-w-sm">
-                        No messages in this WhatsApp number thread yet. Start the conversation with an approved template below.
+                        {isTwilioSender
+                          ? "No messages in this WhatsApp number thread yet. Type a message below to start the conversation."
+                          : "No messages in this WhatsApp number thread yet. Start the conversation with an approved template below."}
                       </span>
                     </div>
                   )}
@@ -1347,7 +1356,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                 <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   <Clock3 className="size-3 text-primary" />
                   <span>
-                    {serviceWindowOpen
+                    {isTwilioSender
+                      ? "Twilio WhatsApp connected"
+                      : serviceWindowOpen
                       ? `24hr window open${serviceWindowExpiresAt ? ` until ${new Date(serviceWindowExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
                       : "Window closed · use template"}
                   </span>
@@ -1357,10 +1368,26 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
             {/* Warnings when reply not permitted */}
             {!replyAllowed && composerMode !== "note" && (
-              <div className="rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
-                {consentStatus === "opted_out"
-                  ? "Customer opted out of WhatsApp messages."
-                  : "WhatsApp opt-in is not recorded yet. Record opt-in in Contact Info to enable sending."}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-2.5 text-xs text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <AlertCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <span className="leading-tight">
+                    {consentStatus === "opted_out"
+                      ? "Customer opted out of WhatsApp messages."
+                      : "WhatsApp opt-in is not recorded yet. Record opt-in to enable sending."}
+                  </span>
+                </div>
+                {consentStatus !== "opted_out" && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-7 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 shadow-xs shrink-0"
+                    onClick={() => void updateConsent("opted_in")}
+                  >
+                    <CheckCircle className="size-3.5 mr-1" />
+                    Record Opt-in
+                  </Button>
+                )}
               </div>
             )}
 
@@ -1479,7 +1506,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     ref={draftInputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    disabled={!activeChat.detailLoaded || (composerMode === "reply" && (!replyAllowed || !activeNumber || !activeSenderEligible))}
+                    disabled={!activeChat.detailLoaded || (composerMode === "reply" && (!replyAllowed || !activeNumber || !activeSenderEligible || (!isTwilioSender && !serviceWindowOpen)))}
                     onKeyDown={(event) => {
                       if (composerMode === "reply" && (event.key === " " || event.key === "Tab")) {
                         const match = /(?:^|\s);([a-z0-9_-]{1,24})$/i.exec(draft);
@@ -1503,9 +1530,11 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                         ? "Write private internal note for your team..."
                         : !activeNumber
                         ? "No active WhatsApp sender number selected"
-                        : replyAllowed
-                        ? "Type a message"
-                        : "Replies disabled until opt-in is recorded"
+                        : !replyAllowed
+                        ? "Replies disabled until opt-in is recorded"
+                        : !isTwilioSender && !serviceWindowOpen
+                        ? "24hr customer service window closed · switch to Template"
+                        : "Type a message"
                     }
                     rows={1}
                     className="w-full resize-none rounded-lg bg-muted/40 px-3.5 py-2.5 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground border border-border min-h-[42px] max-h-32"
@@ -1558,7 +1587,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     sending || !activeChat.detailLoaded ||
                     (composerMode === "note"
                       ? !draft.trim()
-                      : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || !serviceWindowOpen)
+                      : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || (!isTwilioSender && !serviceWindowOpen))
                   }
                   onClick={() => (composerMode === "note" ? void saveInternalNote() : void sendMessage())}
                   className={cn(

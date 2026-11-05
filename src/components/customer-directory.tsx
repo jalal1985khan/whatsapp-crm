@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowDownToLine,
+  CheckCircle,
   FileUp,
   Filter,
   MessageSquare,
@@ -111,6 +112,8 @@ export function CustomerDirectory({
   const [adding, setAdding] = useState(initialAdding);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [optIn, setOptIn] = useState(true);
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -243,14 +246,42 @@ export function CustomerDirectory({
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not add customer.");
-      setItems((current) => [data.contact, ...current]);
+      const createdContact = data.contact;
+      if (optIn && createdContact?.id) {
+        await fetch(`/api/contacts/${encodeURIComponent(createdContact.id)}/consent`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "opted_in", source: "Customer creation opt-in", wordingVersion: "v1.0" }),
+        }).catch(() => null);
+        createdContact.messagingConsent = "opted_in";
+      }
+      setItems((current) => [createdContact, ...current]);
       setName("");
       setPhone("");
       setAdding(false);
+      setNotice("Customer added successfully.");
+      window.setTimeout(() => setNotice(""), 3500);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not add customer.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function quickOptInContact(contact: Contact) {
+    try {
+      const response = await fetch(`/api/contacts/${encodeURIComponent(contact.id)}/consent`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "opted_in", source: "Direct agent verification", wordingVersion: "v1.0" }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not update consent.");
+      setItems((current) => current.map((c) => c.id === contact.id ? { ...c, messagingConsent: "opted_in" } : c));
+      setNotice(`Opt-in recorded for ${contact.name}. WhatsApp messaging is now enabled.`);
+      window.setTimeout(() => setNotice(""), 3500);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not record opt-in.");
     }
   }
 
@@ -538,6 +569,12 @@ export function CustomerDirectory({
         </Card>
       )}
 
+      {notice && (
+        <div role="status" className="rounded-lg border border-border bg-accent/30 px-4 py-2.5 text-xs text-foreground">
+          {notice}
+        </div>
+      )}
+
       {/* CSV Import */}
       {importOpen && canManagePrivacy && (
         <Card>
@@ -580,6 +617,17 @@ export function CustomerDirectory({
                 <Plus className="size-3.5" />
                 {busy ? "Saving…" : "Save customer"}
               </Button>
+              <div className="md:col-span-3 flex items-center gap-2 pt-1">
+                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={optIn}
+                    onChange={(event) => setOptIn(event.target.checked)}
+                    className="size-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  <span>Record WhatsApp opt-in immediately (enables messaging right away)</span>
+                </label>
+              </div>
               {error && (
                 <p role="alert" className="text-xs text-destructive md:col-span-3">
                   {error}
@@ -766,6 +814,15 @@ export function CustomerDirectory({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
+                        {contact.messagingConsent !== "opted_in" && (
+                          <>
+                            <DropdownMenuItem onClick={() => void quickOptInContact(contact)}>
+                              <CheckCircle className="mr-2 size-4 text-emerald-600" />
+                              Record opt-in
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
                         {canEditProfiles && (
                           <DropdownMenuItem onClick={() => beginEdit(contact)}>
                             <Pencil className="mr-2 size-4" />
