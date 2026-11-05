@@ -126,3 +126,4 @@ You can now log in at:
 } finally {
   await pool.end();
 }
+
