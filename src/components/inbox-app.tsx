@@ -619,8 +619,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
       refreshing = true;
       try {
         await refreshInboxList(() => disposed);
-      } catch {
-        if (!disposed) setNotice("Could not refresh CRM data. Check the database connection and retry.");
+      } catch (cause) {
+        console.error("refreshInboxList error:", cause);
+        if (!disposed) setNotice(cause instanceof Error ? cause.message : "Could not refresh CRM data. Check the database connection and retry.");
       } finally {
         refreshing = false;
         if (!disposed && !isHidden()) timer = window.setTimeout(() => void refresh(), 5000);

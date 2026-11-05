@@ -76,56 +76,62 @@ export async function getScopedInboxSnapshot(actor: InboxActor, requestedContact
   }
   const snapshot = await getCrmSnapshot(contactIds);
 
-  const senderAccessClause = actor.role === "Owner" || actor.role === "Admin"
-    ? "TRUE"
-    : `(
-        (EXISTS (SELECT 1 FROM "Conversation" existing WHERE existing."workspaceId"=contact."workspaceId" AND existing."contactId"=contact."id" AND existing."channelNumberId"=number."id")
-          AND EXISTS (SELECT 1 FROM "Conversation" c WHERE c."workspaceId"=contact."workspaceId" AND c."contactId"=contact."id" AND c."channelNumberId"=number."id" AND ${conversationScope(actor.role, "$2")}))
-        OR
-        (NOT EXISTS (SELECT 1 FROM "Conversation" existing WHERE existing."workspaceId"=contact."workspaceId" AND existing."contactId"=contact."id" AND existing."channelNumberId"=number."id")
-          AND EXISTS (SELECT 1 FROM "Conversation" c WHERE c."workspaceId"=contact."workspaceId" AND c."contactId"=contact."id" AND ${conversationScope(actor.role, "$2")}))
-      )`;
-
-  const eligibility = await getPostgresPool().query<{ contactId: string; channelNumberId: string }>(
-    `SELECT contact."id" AS "contactId",number."id" AS "channelNumberId"
-     FROM "Contact" contact
-     JOIN "ChannelNumber" number ON number."workspaceId"=contact."workspaceId" AND number."state"='ACTIVE' AND number."approvedByUserId" IS NOT NULL AND (number."metaPhoneNumberId" IS NOT NULL OR number."provider" = 'TWILIO' OR number."twilioAccountId" IS NOT NULL OR number."twilioAccountSid" IS NOT NULL)
-     LEFT JOIN LATERAL (SELECT conversation."id",conversation."assignedTeamId" FROM "Conversation" conversation WHERE conversation."workspaceId"=contact."workspaceId" AND conversation."contactId"=contact."id" AND conversation."channelNumberId"=number."id" LIMIT 1) target ON TRUE
-     LEFT JOIN LATERAL (SELECT conversation."assignedTeamId" FROM "Conversation" conversation WHERE conversation."workspaceId"=contact."workspaceId" AND conversation."contactId"=contact."id" ORDER BY conversation."lastMessageAt" DESC,conversation."updatedAt" DESC LIMIT 1) latest ON TRUE
-     LEFT JOIN LATERAL (
-       SELECT rule."channelOrder" FROM "RoutingRule" rule
-       WHERE rule."workspaceId"=contact."workspaceId" AND rule."enabled"=TRUE
-         AND (COALESCE(rule."conditions"->>'phonePrefix','')='' OR regexp_replace(contact."primaryPhone",'\\D','','g') LIKE (rule."conditions"->>'phonePrefix') || '%')
-         AND (COALESCE(rule."conditions"->>'teamId','')='' OR rule."conditions"->>'teamId'=COALESCE(CASE WHEN target."id" IS NOT NULL THEN target."assignedTeamId" ELSE latest."assignedTeamId" END,''))
-         AND (COALESCE(rule."conditions"->>'segmentId','')='' OR EXISTS (
-           SELECT 1 FROM "CustomerSegment" segment
-           WHERE segment."workspaceId"=rule."workspaceId" AND segment."id"=rule."conditions"->>'segmentId'
-             AND (COALESCE(segment."filters"->>'tag','')='' OR contact."tags" @> ARRAY[segment."filters"->>'tag'])
-             AND (COALESCE(segment."filters"->>'source','')='' OR lower(COALESCE(contact."source",''))=lower(segment."filters"->>'source'))
-             AND (COALESCE(segment."filters"->>'ownerUserId','')='' OR contact."ownerUserId"=segment."filters"->>'ownerUserId')
-             AND (COALESCE(segment."filters"->>'consent','any')='any' OR COALESCE((SELECT consent."status"::text FROM "ConsentRecord" consent WHERE consent."workspaceId"=contact."workspaceId" AND consent."contactId"=contact."id" AND consent."channel"='WHATSAPP' AND consent."scope"='WHATSAPP_MESSAGING' ORDER BY consent."capturedAt" DESC,consent."id" DESC LIMIT 1),'UNKNOWN')=CASE segment."filters"->>'consent' WHEN 'opted_in' THEN 'OPTED_IN' WHEN 'opted_out' THEN 'OPTED_OUT' ELSE 'UNKNOWN' END)
-         ))
-       ORDER BY (rule."conditions" ? 'segmentId') DESC,length(COALESCE(rule."conditions"->>'phonePrefix','')) DESC,(rule."conditions" ? 'teamId') DESC,rule."priority",rule."createdAt" LIMIT 1
-     ) route ON TRUE
-     WHERE contact."workspaceId"=$1${contactIds === undefined ? "" : ` AND contact."id"=ANY($3::text[])`}
-       AND (
-         number."provider" = 'TWILIO'
-         OR number."twilioAccountId" IS NOT NULL
-         OR number."twilioAccountSid" IS NOT NULL
-         OR (number."whatsappConnectionId" IS NULL AND ${contactIds === undefined ? "$3" : "$4"}::boolean)
-         OR EXISTS (
-           SELECT 1 FROM "WhatsAppConnection" connection
-           WHERE connection."id"=number."whatsappConnectionId" AND connection."workspaceId"=number."workspaceId"
-             AND connection."status"='ACTIVE' AND (connection."tokenExpiresAt" IS NULL OR connection."tokenExpiresAt">CURRENT_TIMESTAMP)
-         )
-       )
-       AND (number."allowedTeamIds" IS NULL OR cardinality(number."allowedTeamIds")=0 OR COALESCE(CASE WHEN target."id" IS NOT NULL THEN target."assignedTeamId" ELSE latest."assignedTeamId" END,'')=ANY(number."allowedTeamIds"))
-       AND (route."channelOrder" IS NULL OR route."channelOrder" @> to_jsonb(number."id"))
-       AND ${senderAccessClause}`,
-    [getWorkspaceId(), actor.userId, ...(contactIds === undefined ? [] : [contactIds]), Boolean(process.env.META_ACCESS_TOKEN)],
-  );
   const eligibleByContact = new Map<string, string[]>();
-  for (const row of eligibility.rows) eligibleByContact.set(row.contactId, [...(eligibleByContact.get(row.contactId) ?? []), row.channelNumberId]);
+  if (contactIds === undefined || contactIds.length > 0) {
+    const params: unknown[] = [getWorkspaceId()];
+    const bind = (v: unknown) => { params.push(v); return `$${params.length}`; };
+    const contactFilter = contactIds === undefined ? "" : ` AND contact."id"=ANY(${bind(contactIds)}::text[])`;
+    const metaTokenParam = bind(Boolean(process.env.META_ACCESS_TOKEN));
+    const senderAccessClause = isAdmin
+      ? "TRUE"
+      : `(
+          (EXISTS (SELECT 1 FROM "Conversation" existing WHERE existing."workspaceId"=contact."workspaceId" AND existing."contactId"=contact."id" AND existing."channelNumberId"=number."id")
+            AND EXISTS (SELECT 1 FROM "Conversation" c WHERE c."workspaceId"=contact."workspaceId" AND c."contactId"=contact."id" AND c."channelNumberId"=number."id" AND ${conversationScope(actor.role, bind(actor.userId))}))
+          OR
+          (NOT EXISTS (SELECT 1 FROM "Conversation" existing WHERE existing."workspaceId"=contact."workspaceId" AND existing."contactId"=contact."id" AND existing."channelNumberId"=number."id")
+            AND EXISTS (SELECT 1 FROM "Conversation" c WHERE c."workspaceId"=contact."workspaceId" AND c."contactId"=contact."id" AND ${conversationScope(actor.role, bind(actor.userId))}))
+        )`;
+
+    const eligibility = await getPostgresPool().query<{ contactId: string; channelNumberId: string }>(
+      `SELECT contact."id" AS "contactId",number."id" AS "channelNumberId"
+       FROM "Contact" contact
+       JOIN "ChannelNumber" number ON number."workspaceId"=contact."workspaceId" AND number."state"='ACTIVE' AND (number."approvedByUserId" IS NOT NULL OR number."approvedAt" IS NOT NULL OR number."provider" = 'TWILIO' OR number."twilioAccountId" IS NOT NULL OR number."twilioAccountSid" IS NOT NULL) AND (number."metaPhoneNumberId" IS NOT NULL OR number."provider" = 'TWILIO' OR number."twilioAccountId" IS NOT NULL OR number."twilioAccountSid" IS NOT NULL)
+       LEFT JOIN LATERAL (SELECT conversation."id",conversation."assignedTeamId" FROM "Conversation" conversation WHERE conversation."workspaceId"=contact."workspaceId" AND conversation."contactId"=contact."id" AND conversation."channelNumberId"=number."id" LIMIT 1) target ON TRUE
+       LEFT JOIN LATERAL (SELECT conversation."assignedTeamId" FROM "Conversation" conversation WHERE conversation."workspaceId"=contact."workspaceId" AND conversation."contactId"=contact."id" ORDER BY conversation."lastMessageAt" DESC,conversation."updatedAt" DESC LIMIT 1) latest ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT rule."channelOrder" FROM "RoutingRule" rule
+         WHERE rule."workspaceId"=contact."workspaceId" AND rule."enabled"=TRUE
+           AND (COALESCE(rule."conditions"->>'phonePrefix','')='' OR regexp_replace(contact."primaryPhone",'\\D','','g') LIKE (rule."conditions"->>'phonePrefix') || '%')
+           AND (COALESCE(rule."conditions"->>'teamId','')='' OR rule."conditions"->>'teamId'=COALESCE(CASE WHEN target."id" IS NOT NULL THEN target."assignedTeamId" ELSE latest."assignedTeamId" END,''))
+           AND (COALESCE(rule."conditions"->>'segmentId','')='' OR EXISTS (
+             SELECT 1 FROM "CustomerSegment" segment
+             WHERE segment."workspaceId"=rule."workspaceId" AND segment."id"=rule."conditions"->>'segmentId'
+               AND (COALESCE(segment."filters"->>'tag','')='' OR contact."tags" @> ARRAY[segment."filters"->>'tag'])
+               AND (COALESCE(segment."filters"->>'source','')='' OR lower(COALESCE(contact."source",''))=lower(segment."filters"->>'source'))
+               AND (COALESCE(segment."filters"->>'ownerUserId','')='' OR contact."ownerUserId"=segment."filters"->>'ownerUserId')
+               AND (COALESCE(segment."filters"->>'consent','any')='any' OR COALESCE((SELECT consent."status"::text FROM "ConsentRecord" consent WHERE consent."workspaceId"=contact."workspaceId" AND consent."contactId"=contact."id" AND consent."channel"='WHATSAPP' AND consent."scope"='WHATSAPP_MESSAGING' ORDER BY consent."capturedAt" DESC,consent."id" DESC LIMIT 1),'UNKNOWN')=CASE segment."filters"->>'consent' WHEN 'opted_in' THEN 'OPTED_IN' WHEN 'opted_out' THEN 'OPTED_OUT' ELSE 'UNKNOWN' END)
+           ))
+         ORDER BY (rule."conditions" ? 'segmentId') DESC,length(COALESCE(rule."conditions"->>'phonePrefix','')) DESC,(rule."conditions" ? 'teamId') DESC,rule."priority",rule."createdAt" LIMIT 1
+       ) route ON TRUE
+       WHERE contact."workspaceId"=$1${contactFilter}
+         AND (
+           number."provider" = 'TWILIO'
+           OR number."twilioAccountId" IS NOT NULL
+           OR number."twilioAccountSid" IS NOT NULL
+           OR (number."whatsappConnectionId" IS NULL AND ${metaTokenParam}::boolean)
+           OR EXISTS (
+             SELECT 1 FROM "WhatsAppConnection" connection
+             WHERE connection."id"=number."whatsappConnectionId" AND connection."workspaceId"=number."workspaceId"
+               AND connection."status"='ACTIVE' AND (connection."tokenExpiresAt" IS NULL OR connection."tokenExpiresAt">CURRENT_TIMESTAMP)
+           )
+         )
+         AND (number."allowedTeamIds" IS NULL OR cardinality(number."allowedTeamIds")=0 OR COALESCE(CASE WHEN target."id" IS NOT NULL THEN target."assignedTeamId" ELSE latest."assignedTeamId" END,'')=ANY(number."allowedTeamIds"))
+         AND (route."channelOrder" IS NULL OR route."channelOrder" @> to_jsonb(number."id"))
+         AND ${senderAccessClause}`,
+      params,
+    );
+    for (const row of eligibility.rows) eligibleByContact.set(row.contactId, [...(eligibleByContact.get(row.contactId) ?? []), row.channelNumberId]);
+  }
   const fullSnapshot = { ...snapshot, chats: snapshot.chats.map((chat) => ({ ...chat, eligibleSenderNumberIds: eligibleByContact.get(chat.id) ?? [] })) };
   if (isAdmin) return fullSnapshot;
 
@@ -262,18 +268,24 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
   }
   const metadata = await getScopedInboxSnapshot(actor, []);
 
-  const params: unknown[] = [getWorkspaceId(), actor.userId];
+  const params: unknown[] = [getWorkspaceId()];
   const bind = (value: unknown) => { params.push(value); return `$${params.length}`; };
+  const isAdmin = actor.role === "Owner" || actor.role === "Admin";
+  let userParam: string | null = null;
+  const getUserParam = () => {
+    if (!userParam) userParam = bind(actor.userId);
+    return userParam;
+  };
   const matchClauses: string[] = [];
   const conversationFilters: string[] = [];
   if (queryText) {
     const q = bind(queryText.toLowerCase());
-    matchClauses.push(`(position(${q} in lower(concat_ws(' ',b."name",b."primaryPhone",array_to_string(b."additionalPhones",' '),b."assignedTo",b."assignedTeam",b."numberText",array_to_string(b."tags",' '),b."preview")))>0
-      OR EXISTS (SELECT 1 FROM "Message" m WHERE m."workspaceId"=$1 AND m."contactId"=b."id" AND m."direction"<>'INTERNAL' AND position(${q} in lower(COALESCE(m."textBody",'')))>0 AND (${actor.role === "Owner" || actor.role === "Admin" ? "TRUE" : "m.\"conversationId\" IN (SELECT vc.\"id\" FROM visible_conversations vc WHERE vc.\"contactId\"=b.\"id\")"}))
+    matchClauses.push(`(position(${q} in lower(concat_ws(' ',b."name",b."phone",array_to_string(b."additionalPhones",' '),b."assignedTo",b."assignedTeam",b."numberText",array_to_string(b."tags",' '),b."preview")))>0
+      OR EXISTS (SELECT 1 FROM "Message" m WHERE m."workspaceId"=$1 AND m."contactId"=b."id" AND m."direction"<>'INTERNAL' AND position(${q} in lower(COALESCE(m."textBody",'')))>0 AND (${isAdmin ? "TRUE" : `m."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=b."id")`}))
       OR EXISTS (SELECT 1 FROM "InternalNote" note WHERE note."workspaceId"=$1 AND note."contactId"=b."id" AND position(${q} in lower(note."text"))>0))`);
   }
   if (filters.tab === "Unread") conversationFilters.push(`thread."unreadCount">0`);
-  if (filters.tab === "Mine") conversationFilters.push(`thread."assignedUserId"=$2`);
+  if (filters.tab === "Mine") conversationFilters.push(`thread."assignedUserId"=${getUserParam()}`);
   if (filters.tab === "Unassigned") conversationFilters.push(`thread."assignedUserId" IS NULL AND thread."assignedTeamId" IS NULL`);
   if (filters.tab === "Team") conversationFilters.push(`thread."assignedTeamId" IS NOT NULL`);
   if (filters.tab === "Failed") conversationFilters.push(`EXISTS (SELECT 1 FROM "Message" failed WHERE failed."workspaceId"=$1 AND failed."conversationId"=thread."id" AND failed."status"='FAILED')`);
@@ -295,7 +307,11 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
   if (conversationFilters.length) matchClauses.push(`EXISTS (SELECT 1 FROM visible_conversations thread WHERE thread."contactId"=b."id" AND ${conversationFilters.join(" AND ")})`);
   if (filters.tag) matchClauses.push(`b."tags" @> ARRAY[${bind(filters.tag)}]::text[]`);
   const matchesExpression = matchClauses.length ? matchClauses.map((clause) => `(${clause})`).join(" AND ") : "TRUE";
-  const isAdmin = actor.role === "Owner" || actor.role === "Admin";
+
+  const userScopeClause = !isAdmin ? conversationScope(actor.role, getUserParam()) : "TRUE";
+  const contactScopeClause = !isAdmin ? `contact."ownerUserId"=${getUserParam()} OR EXISTS (SELECT 1 FROM visible_conversations vc WHERE vc."contactId"=contact."id")` : "TRUE";
+  const messageScopeClause = !isAdmin ? `message."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=contact."id")` : "TRUE";
+
   const result = await getPostgresPool().query<{
     id: string; name: string; initials: string; phone: string; additionalPhones: string[]; preview: string; lastActivityAt: Date | string;
     color: string; unreadCount: number; state: string; assignedTo: string | null; assignedUserId: string | null; assignedTeamId: string | null;
@@ -305,10 +321,10 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
   }>(
     `WITH visible_conversations AS (
        SELECT c."id",c."contactId",c."channelNumberId",c."state",c."assignedUserId",c."assignedTeamId",c."unreadCount",c."lastMessageAt",c."serviceWindowExpiresAt",c."updatedAt"
-       FROM "Conversation" c WHERE c."workspaceId"=$1 AND (${isAdmin ? "TRUE" : conversationScope(actor.role, "$2")})
+       FROM "Conversation" c WHERE c."workspaceId"=$1 AND (${userScopeClause})
      ), visible_contacts AS (
        SELECT contact."id" FROM "Contact" contact WHERE contact."workspaceId"=$1 AND contact."mergedIntoContactId" IS NULL
-         AND (${isAdmin ? "TRUE" : `contact."ownerUserId"=$2 OR EXISTS (SELECT 1 FROM visible_conversations vc WHERE vc."contactId"=contact."id")`})
+         AND (${contactScopeClause})
      ), base AS (
        SELECT contact."id",COALESCE(NULLIF(BTRIM(contact."displayName"),''),contact."primaryPhone") AS "name",
          LEFT(COALESCE(NULLIF(BTRIM(contact."displayName"),''),contact."primaryPhone"),1) AS "initials",contact."primaryPhone" AS "phone",
@@ -338,25 +354,25 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
        LEFT JOIN LATERAL (
          SELECT message."textBody",message."createdAt",message."channelNumberId" FROM "Message" message
          WHERE message."workspaceId"=$1 AND message."contactId"=contact."id" AND message."direction"<>'INTERNAL'
-           AND (${isAdmin ? "TRUE" : `message."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=contact."id")`})
+           AND (${messageScopeClause})
          ORDER BY message."createdAt" DESC,message."id" DESC LIMIT 1
        ) latestMessage ON TRUE
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS "messageCount" FROM "Message" message WHERE message."workspaceId"=$1 AND message."contactId"=contact."id" AND message."direction"<>'INTERNAL'
-           AND (${isAdmin ? "TRUE" : `message."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=contact."id")`})
+           AND (${messageScopeClause})
        ) messageStats ON TRUE
        LEFT JOIN LATERAL (
          SELECT EXISTS(SELECT 1 FROM "Message" message WHERE message."workspaceId"=$1 AND message."contactId"=contact."id" AND message."status"='FAILED'
-           AND (${isAdmin ? "TRUE" : `message."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=contact."id")`})) AS "hasFailed"
+           AND (${messageScopeClause})) AS "hasFailed"
        ) failureStats ON TRUE
        LEFT JOIN LATERAL (
          SELECT MIN(waiting."lastInboundAt") AS "unansweredSince" FROM (
            SELECT message."channelNumberId",MAX(message."createdAt") FILTER (WHERE message."direction"='INBOUND') AS "lastInboundAt",
              MAX(message."createdAt") FILTER (WHERE message."direction"='OUTBOUND' AND message."status" IN ('SENT','DELIVERED','READ')) AS "lastOutboundAt"
            FROM "Message" message WHERE message."workspaceId"=$1 AND message."contactId"=contact."id"
-             AND (${isAdmin ? "TRUE" : `message."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=contact."id")`})
+             AND (${messageScopeClause})
            GROUP BY message."channelNumberId"
-         ) waiting WHERE waiting."lastInboundAt" IS NOT NULL AND waiting."lastInboundAt">COALESCE(waiting."lastOutboundAt",'-infinity'::timestamptz)
+         ) waiting WHERE waiting."lastInboundAt" IS NOT NULL AND (waiting."lastOutboundAt" IS NULL OR waiting."lastInboundAt">waiting."lastOutboundAt")
        ) queueStats ON TRUE
      )
      SELECT b.*,(${matchesExpression}) AS "matchesFilter" FROM base b ORDER BY b."lastActivityAt" DESC,b."id"`,
