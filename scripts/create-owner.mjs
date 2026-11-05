@@ -93,11 +93,12 @@ try {
       [workspaceId, userId]
     );
 
-    // 5. Clean up any pending bootstrap owner invitations
+    // 5. Clean up any pending bootstrap owner invitations and reset rate limits
     await client.query(
       `DELETE FROM "WorkspaceInvitation" WHERE "workspaceId" = $1 AND "role" = 'OWNER'::"WorkspaceRole"`,
       [workspaceId]
     );
+    await client.query(`DELETE FROM "LoginRateLimit"`).catch(() => {});
 
     await client.query("COMMIT");
 
