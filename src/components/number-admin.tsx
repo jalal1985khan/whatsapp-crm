@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -381,129 +382,135 @@ export function NumberAdmin({
       </div>
 
         {notice && (
-          <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div role="status" className="mb-4 rounded-lg border border-border bg-accent/30 px-4 py-3 text-sm text-foreground">
             {notice}
           </div>
         )}
         {error && (
-          <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div role="alert" className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
           </div>
         )}
 
         {/* Twilio Webhook Instruction Callout */}
-        <section className="mb-6 rounded-2xl border border-purple-200 bg-purple-50/60 p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="flex size-7 items-center justify-center rounded-lg bg-purple-600 text-white">
-                  <Server className="size-4" />
+        <Card className="mb-6 border-primary/20 bg-muted/30">
+          <CardContent className="p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Server className="size-4" />
+                  </div>
+                  <h2 className="text-sm font-semibold text-foreground">Twilio WhatsApp Webhook Configuration</h2>
                 </div>
-                <h2 className="text-sm font-semibold text-purple-950">Twilio WhatsApp Webhook Configuration</h2>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground max-w-2xl">
+                  For every WhatsApp number in your Twilio Console (under <strong>Develop → Messaging → Senders → WhatsApp senders</strong> or <strong>Phone Numbers → Active numbers</strong>), set <em>&quot;WHEN A MESSAGE COMES IN&quot;</em> to <strong>HTTP POST</strong> with this URL:
+                </p>
+                <div className="mt-3 flex items-center gap-2 max-w-xl">
+                  <code className="flex-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-mono font-medium text-foreground select-all">
+                    {webhookUrl}
+                  </code>
+                  <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={copyWebhookUrl}>
+                    {copiedWebhook ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+                    {copiedWebhook ? "Copied!" : "Copy URL"}
+                  </Button>
+                </div>
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-purple-900 max-w-2xl">
-                For every WhatsApp number in your Twilio Console (under <strong>Develop → Messaging → Senders → WhatsApp senders</strong> or <strong>Phone Numbers → Active numbers</strong>), set <em>&quot;WHEN A MESSAGE COMES IN&quot;</em> to <strong>HTTP POST</strong> with this URL:
-              </p>
-              <div className="mt-3 flex items-center gap-2 max-w-xl">
-                <code className="flex-1 rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-xs font-mono font-medium text-purple-900 select-all">
-                  {webhookUrl}
-                </code>
-                <Button size="sm" variant="outline" className="gap-1.5 bg-white text-xs" onClick={copyWebhookUrl}>
-                  {copiedWebhook ? <Check className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
-                  {copiedWebhook ? "Copied!" : "Copy URL"}
-                </Button>
-              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                onClick={() => setShowAddAccountModal(true)}
+              >
+                <Key className="mr-1.5 size-3.5" />
+                Manage Twilio Accounts ({twilioAccounts.length})
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="bg-white border-purple-300 text-purple-900 text-xs"
-              onClick={() => setShowAddAccountModal(true)}
-            >
-              <Key className="mr-1.5 size-3.5" />
-              Manage Twilio Accounts ({twilioAccounts.length})
-            </Button>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
         {/* Modal/Box for Managing Twilio Accounts */}
         {showAddAccountModal && (
-          <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold">Twilio Accounts ({twilioAccounts.length})</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Save credentials for each Twilio account you want to route WhatsApp numbers through.
-                </p>
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-semibold">Twilio Accounts ({twilioAccounts.length})</CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    Save credentials for each Twilio account you want to route WhatsApp numbers through.
+                  </CardDescription>
+                </div>
+                <Button size="icon" variant="ghost" onClick={() => setShowAddAccountModal(false)}>
+                  <X className="size-4" />
+                </Button>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => setShowAddAccountModal(false)}>
-                <X className="size-4" />
-              </Button>
-            </div>
+            </CardHeader>
 
-            {twilioAccounts.length > 0 && (
-              <div className="mt-4 divide-y rounded-xl border bg-gray-50/50">
-                {twilioAccounts.map((acc) => (
-                  <div key={acc.id} className="flex items-center justify-between p-3 text-xs">
-                    <div>
-                      <div className="font-semibold text-gray-900">{acc.friendlyName}</div>
-                      <div className="text-muted-foreground font-mono text-[11px]">{acc.accountSid}</div>
+            <CardContent>
+              {twilioAccounts.length > 0 && (
+                <div className="divide-y rounded-xl border bg-muted/20">
+                  {twilioAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between p-3 text-xs">
+                      <div>
+                        <div className="font-semibold text-foreground">{acc.friendlyName}</div>
+                        <div className="text-muted-foreground font-mono text-[11px]">{acc.accountSid}</div>
+                      </div>
+                      <Badge variant="secondary">{acc.numberCount} number{acc.numberCount === 1 ? "" : "s"}</Badge>
                     </div>
-                    <Badge variant="secondary">{acc.numberCount} number{acc.numberCount === 1 ? "" : "s"}</Badge>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            <form onSubmit={handleAddTwilioAccount} className="mt-4 border-t pt-4">
-              <h4 className="text-xs font-semibold text-gray-800 mb-2">Connect Another Twilio Account</h4>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="flex flex-col gap-1 text-xs">
-                  Account Name / Label
-                  <Input
-                    required
-                    placeholder="e.g. Sales Account, US Line"
-                    value={standaloneAccountName}
-                    onChange={(e) => setStandaloneAccountName(e.target.value)}
-                    className="h-8 text-xs"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs">
-                  Twilio Account SID
-                  <Input
-                    required
-                    placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                    value={standaloneAccountSid}
-                    onChange={(e) => setStandaloneAccountSid(e.target.value)}
-                    className="h-8 text-xs font-mono"
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs">
-                  Twilio Auth Token
-                  <Input
-                    required
-                    type="password"
-                    placeholder="Auth Token"
-                    value={standaloneAuthToken}
-                    onChange={(e) => setStandaloneAuthToken(e.target.value)}
-                    className="h-8 text-xs font-mono"
-                  />
-                </label>
-              </div>
-              <div className="mt-3 flex justify-end gap-2">
-                <Button size="sm" type="button" variant="ghost" onClick={() => setShowAddAccountModal(false)}>
-                  Cancel
-                </Button>
-                <Button size="sm" type="submit" disabled={standaloneTesting}>
-                  {standaloneTesting ? "Verifying with Twilio…" : "Test & Save Account"}
-                </Button>
-              </div>
-            </form>
-          </div>
+              <form onSubmit={handleAddTwilioAccount} className="mt-4 border-t pt-4">
+                <h4 className="text-xs font-semibold text-foreground mb-2">Connect Another Twilio Account</h4>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <label className="flex flex-col gap-1 text-xs text-foreground">
+                    Account Name / Label
+                    <Input
+                      required
+                      placeholder="e.g. Sales Account, US Line"
+                      value={standaloneAccountName}
+                      onChange={(e) => setStandaloneAccountName(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-foreground">
+                    Twilio Account SID
+                    <Input
+                      required
+                      placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                      value={standaloneAccountSid}
+                      onChange={(e) => setStandaloneAccountSid(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-foreground">
+                    Twilio Auth Token
+                    <Input
+                      required
+                      type="password"
+                      placeholder="Auth Token"
+                      value={standaloneAuthToken}
+                      onChange={(e) => setStandaloneAuthToken(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button size="sm" type="button" variant="ghost" onClick={() => setShowAddAccountModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" type="submit" disabled={standaloneTesting}>
+                    {standaloneTesting ? "Verifying with Twilio…" : "Test & Save Account"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         )}
 
         {/* Connected Sender Numbers List */}
-        <section className="rounded-2xl border bg-white shadow-sm">
+        <Card className="overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4">
             <div>
               <h2 className="text-sm font-semibold">Configured WhatsApp Numbers</h2>
@@ -526,7 +533,7 @@ export function NumberAdmin({
                   <div id={`channel-number-${item.id}`} key={item.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
                     <div
                       className={`flex size-10 items-center justify-center rounded-xl ${
-                        item.state === "Active" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"
+                        item.state === "Active" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                       }`}
                     >
                       <Phone className="size-4" />
@@ -642,46 +649,49 @@ export function NumberAdmin({
               })
             )}
           </div>
-        </section>
+        </Card>
 
         {/* Add Number Section */}
-        <section className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
-                <Plus className="size-4" />
+        <Card className="mt-6">
+          <CardHeader className="pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Plus className="size-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-sm font-semibold">Add WhatsApp Number</CardTitle>
+                  <CardDescription className="text-xs">
+                    Connect a new number to route WhatsApp conversations through Twilio or Meta.
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold">Add WhatsApp Number</h3>
-                <p className="text-xs text-muted-foreground">
-                  Connect a new number to route WhatsApp conversations through Twilio or Meta.
-                </p>
+              {/* Provider Selector Tabs */}
+              <div className="flex rounded-lg border bg-muted p-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider("TWILIO")}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition",
+                    selectedProvider === "TWILIO" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Twilio WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedProvider("META")}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition",
+                    selectedProvider === "META" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Meta Cloud API
+                </button>
               </div>
             </div>
-            {/* Provider Selector Tabs */}
-            <div className="flex rounded-lg border bg-gray-50 p-1">
-              <button
-                type="button"
-                onClick={() => setSelectedProvider("TWILIO")}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium transition",
-                  selectedProvider === "TWILIO" ? "bg-white text-purple-900 shadow-sm" : "text-gray-600 hover:text-gray-900",
-                )}
-              >
-                Twilio WhatsApp
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedProvider("META")}
-                className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium transition",
-                  selectedProvider === "META" ? "bg-white text-blue-900 shadow-sm" : "text-gray-600 hover:text-gray-900",
-                )}
-              >
-                Meta Cloud API
-              </button>
-            </div>
-          </div>
+          </CardHeader>
+          <CardContent>
 
           <form onSubmit={addNumber} className="grid gap-4 md:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-xs font-medium">
@@ -790,16 +800,18 @@ export function NumberAdmin({
               </Button>
             </div>
           </form>
-        </section>
+          </CardContent>
+        </Card>
 
         {/* Team Access */}
-        <section className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-4">
-            <h2 className="text-sm font-semibold">Sender Number Team Access</h2>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        <Card className="mt-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Sender Number Team Access</CardTitle>
+            <CardDescription className="text-xs">
               Restrict which teams can send from each number. If none are selected, all workspace agents can use it.
-            </p>
-          </div>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           {teams.length === 0 ? (
             <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
               No teams created yet. You can create teams in Admin → Team.
@@ -853,7 +865,8 @@ export function NumberAdmin({
                 })}
             </div>
           )}
-        </section>
+          </CardContent>
+        </Card>
     </div>
   );
 }
