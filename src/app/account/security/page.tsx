@@ -27,8 +27,8 @@ export default async function AccountSecurityPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f8f6]">
-      <header className="flex h-16 items-center justify-between border-b bg-white px-5 md:px-10">
+    <main className="min-h-screen bg-background">
+      <header className="flex h-16 items-center justify-between border-b bg-card px-5 md:px-10">
         <div className="flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-white">
             <ShieldCheck className="size-4" />

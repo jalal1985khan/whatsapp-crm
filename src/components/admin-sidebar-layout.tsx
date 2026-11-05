@@ -157,9 +157,9 @@ export function AdminSidebarLayout({ children, user }: AdminSidebarLayoutProps) 
                       <span>{item.name}</span>
                     </div>
                     {item.badge && (
-                      <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-800">
+                      <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-semibold bg-primary/10 text-primary border-primary/20">
                         {item.badge}
-                      </span>
+                      </Badge>
                     )}
                   </Link>
                 );
@@ -223,7 +223,7 @@ export function AdminSidebarLayout({ children, user }: AdminSidebarLayoutProps) 
   );
 
   return (
-    <div className="flex min-h-screen bg-[#f7f8f6]">
+    <div className="flex min-h-screen bg-background">
       {/* Desktop Persistent Sidebar */}
       <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-card shadow-xs">
         {SidebarContent}

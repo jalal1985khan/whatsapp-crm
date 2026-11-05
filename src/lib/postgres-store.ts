@@ -91,13 +91,15 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
       : expiresAt && expiresAt.getTime() <= now ? "EXPIRED"
       : expiresAt && expiresAt.getTime() <= now + 7 * 24 * 60 * 60 * 1000 ? "EXPIRING"
       : "CONNECTED";
+    const isTwilioNumber = (row.provider as string) === "TWILIO" || Boolean(row.twilioAccountId || row.twilioAccountSid);
+    const isApproved = Boolean(row.approvedByUserId || row.approvedAt || isTwilioNumber);
     return {
       id: string(row.id), label: string(row.label), number: string(row.e164Number), displayName: nullableString(row.displayName),
       provider: (row.provider as "TWILIO" | "META") || (row.metaPhoneNumberId ? "META" : "TWILIO"),
       twilioAccountId: nullableString(row.twilioAccountId),
       twilioAccountSid: nullableString(row.twilioAccountSid || row.taAccountSid),
       twilioAccountName: nullableString(row.twilioAccountName),
-      metaPhoneNumberId: nullableString(row.metaPhoneNumberId), metaWabaId: nullableString(row.metaWabaId), qualitySignal: nullableString(row.qualitySignal), allowedTeamIds: Array.isArray(row.allowedTeamIds) ? row.allowedTeamIds.map(String) : [], routingPriority: Number(row.routingPriority), lastStatusEventAt: row.lastStatusEventAt == null ? undefined : date(row.lastStatusEventAt).toISOString(), metaConnectionStatus: connectionStatus, metaTokenExpiresAt: expiresAt?.toISOString() ?? null, state: String(row.state) === "ACTIVE" && !row.approvedByUserId ? "Pending approval" : stateFromDb(row.state), createdAt: date(row.createdAt).toISOString(),
+      metaPhoneNumberId: nullableString(row.metaPhoneNumberId), metaWabaId: nullableString(row.metaWabaId), qualitySignal: nullableString(row.qualitySignal), allowedTeamIds: Array.isArray(row.allowedTeamIds) ? row.allowedTeamIds.map(String) : [], routingPriority: Number(row.routingPriority), lastStatusEventAt: row.lastStatusEventAt == null ? undefined : date(row.lastStatusEventAt).toISOString(), metaConnectionStatus: connectionStatus, metaTokenExpiresAt: expiresAt?.toISOString() ?? null, state: String(row.state) === "ACTIVE" && !isApproved ? "Pending approval" : stateFromDb(row.state), createdAt: date(row.createdAt).toISOString(),
     };
   });
   const conversationsByContact = new Map<string, Row[]>();

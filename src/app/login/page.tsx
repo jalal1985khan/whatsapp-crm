@@ -49,10 +49,10 @@ export default function LoginPage() {
     }
   }
 
-  return <main className="flex min-h-screen items-center justify-center bg-[#f6f8f6] px-4 py-10">
-    <div className="w-full max-w-[420px] rounded-2xl border bg-white p-8 shadow-sm">
-      <div className="mb-8 flex items-center gap-3"><div className="flex size-11 items-center justify-center rounded-xl bg-primary text-white"><MessageCircle className="size-5" /></div><div><div className="text-lg font-semibold">Relay CRM</div><div className="text-xs text-muted-foreground">Secure workspace access</div></div></div>
-      <div className="mb-6"><div className="text-xl font-semibold">{setupPending ? "Check your inbox" : mfaStep ? "Verify your identity" : setup ? "Welcome back" : "Create your owner account"}</div><p className="mt-1 text-sm text-muted-foreground">{setupPending ? `We sent a one-time owner verification link to ${email}. Open it to verify your address and finish account setup.` : mfaStep ? "Enter a code from your authenticator app or one of your recovery codes." : setup ? "Sign in to manage your inbox and connected numbers." : databaseConfigured ? "Verify your email before the workspace owner account is activated." : "This first account will have workspace owner access."}</p></div>
+  return <main className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-10">
+    <div className="w-full max-w-[420px] rounded-2xl border bg-card p-8 shadow-sm">
+      <div className="mb-8 flex items-center gap-3"><div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground"><MessageCircle className="size-5" /></div><div><div className="text-lg font-semibold text-foreground">Relay CRM</div><div className="text-xs text-muted-foreground">Secure workspace access</div></div></div>
+      <div className="mb-6"><div className="text-xl font-semibold text-foreground">{setupPending ? "Check your inbox" : mfaStep ? "Verify your identity" : setup ? "Welcome back" : "Create your owner account"}</div><p className="mt-1 text-sm text-muted-foreground">{setupPending ? `We sent a one-time owner verification link to ${email}. Open it to verify your address and finish account setup.` : mfaStep ? "Enter a code from your authenticator app or one of your recovery codes." : setup ? "Sign in to manage your inbox and connected numbers." : databaseConfigured ? "Verify your email before the workspace owner account is activated." : "This first account will have workspace owner access."}</p></div>
       {!setupPending && <form onSubmit={submit} className="flex flex-col gap-4">
         {!mfaStep && !setup && <label className="flex flex-col gap-1.5 text-sm font-medium">Full name<Input autoComplete="name" required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>}
         {!mfaStep && <label className="flex flex-col gap-1.5 text-sm font-medium">Email<Input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>}
@@ -65,7 +65,7 @@ export default function LoginPage() {
         {setup && <div className="text-center"><Link href="/login/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div>}
       </form>}
       {setupPending && <Button type="button" variant="outline" className="w-full" onClick={() => { setSetupPending(false); setBootstrapSecret(""); }}>Use a different email</Button>}
-      <div className="mt-6 flex items-start gap-2 rounded-lg bg-[#f6f8f6] p-3 text-xs leading-relaxed text-muted-foreground"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" /><span>Admin access is protected by a signed session. Enable MFA before connecting production messaging numbers.</span></div>
+      <div className="mt-6 flex items-start gap-2 rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" /><span>Admin access is protected by a signed session. Enable MFA before connecting production messaging numbers.</span></div>
       <p className="mt-5 flex items-center justify-center gap-1 text-[11px] text-muted-foreground"><LockKeyhole className="size-3" />Passwords are protected with a unique salted hash.</p>
     </div>
   </main>;

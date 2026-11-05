@@ -108,12 +108,18 @@ export async function getScopedInboxSnapshot(actor: InboxActor, requestedContact
        ORDER BY (rule."conditions" ? 'segmentId') DESC,length(COALESCE(rule."conditions"->>'phonePrefix','')) DESC,(rule."conditions" ? 'teamId') DESC,rule."priority",rule."createdAt" LIMIT 1
      ) route ON TRUE
      WHERE contact."workspaceId"=$1${contactIds === undefined ? "" : ` AND contact."id"=ANY($3::text[])`}
-       AND ((number."whatsappConnectionId" IS NULL AND ${contactIds === undefined ? "$3" : "$4"}::boolean) OR EXISTS (
-         SELECT 1 FROM "WhatsAppConnection" connection
-         WHERE connection."id"=number."whatsappConnectionId" AND connection."workspaceId"=number."workspaceId"
-           AND connection."status"='ACTIVE' AND (connection."tokenExpiresAt" IS NULL OR connection."tokenExpiresAt">CURRENT_TIMESTAMP)
-       ))
-       AND (cardinality(number."allowedTeamIds")=0 OR COALESCE(CASE WHEN target."id" IS NOT NULL THEN target."assignedTeamId" ELSE latest."assignedTeamId" END,'')=ANY(number."allowedTeamIds"))
+       AND (
+         number."provider" = 'TWILIO'
+         OR number."twilioAccountId" IS NOT NULL
+         OR number."twilioAccountSid" IS NOT NULL
+         OR (number."whatsappConnectionId" IS NULL AND ${contactIds === undefined ? "$3" : "$4"}::boolean)
+         OR EXISTS (
+           SELECT 1 FROM "WhatsAppConnection" connection
+           WHERE connection."id"=number."whatsappConnectionId" AND connection."workspaceId"=number."workspaceId"
+             AND connection."status"='ACTIVE' AND (connection."tokenExpiresAt" IS NULL OR connection."tokenExpiresAt">CURRENT_TIMESTAMP)
+         )
+       )
+       AND (number."allowedTeamIds" IS NULL OR cardinality(number."allowedTeamIds")=0 OR COALESCE(CASE WHEN target."id" IS NOT NULL THEN target."assignedTeamId" ELSE latest."assignedTeamId" END,'')=ANY(number."allowedTeamIds"))
        AND (route."channelOrder" IS NULL OR route."channelOrder" @> to_jsonb(number."id"))
        AND ${senderAccessClause}`,
     [getWorkspaceId(), actor.userId, ...(contactIds === undefined ? [] : [contactIds]), Boolean(process.env.META_ACCESS_TOKEN)],
@@ -230,12 +236,14 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
       const numberText = threadMessages.map((message) => metadata.numbers.find((number) => number.id === message.senderNumberId)).filter(Boolean).map((number) => `${number?.label} ${number?.number}`).join(" ");
       const text = [chat.name, chat.phone, ...(chat.additionalPhones ?? []), chat.preview, chat.assignedTo, chat.assignedTeam, numberText, ...(chat.tags ?? (chat.label ? [chat.label] : [])), ...threadMessages.map((message) => message.text), ...(chat.internalNotes?.map((note) => note.text) ?? [])].join(" ").toLowerCase();
       const selectedState = !filters.state || filters.state === "All states" ? undefined : filters.state;
-      const threadFiltersActive = Boolean(selectedState || filters.numberId || filters.teamId || filters.dateFrom || filters.dateTo || ["Mine", "Unassigned", "Team", "Unread", "Failed"].includes(filters.tab ?? ""));
+      const tabState = ["Open", "Waiting", "Resolved"].includes(filters.tab ?? "") ? filters.tab : undefined;
+      const effectiveState = selectedState ?? tabState;
+      const threadFiltersActive = Boolean(effectiveState || filters.numberId || filters.teamId || filters.dateFrom || filters.dateTo || ["Mine", "Unassigned", "Team", "Unread", "Failed"].includes(filters.tab ?? ""));
       const candidateThreads = chat.conversationAssignments?.length ? chat.conversationAssignments : [{ channelNumberId: chat.currentSenderNumberId ?? threadMessages.at(-1)?.senderNumberId ?? "", assignedUserId: chat.assignedUserId, assignedTeamId: chat.assignedTeamId, state: chat.state, unreadCount: chat.unread }];
       const matchesConversation = !threadFiltersActive || candidateThreads.some((thread) => {
         const messagesOnThread = threadMessages.filter((message) => !thread.channelNumberId || message.senderNumberId === thread.channelNumberId);
         const matchesDate = (!filters.dateFrom && !filters.dateTo) || messagesOnThread.some((message) => { const day = message.createdAt?.slice(0, 10); return Boolean(day && (!filters.dateFrom || day >= filters.dateFrom) && (!filters.dateTo || day <= filters.dateTo)); });
-        return (!selectedState || thread.state === selectedState)
+        return (!effectiveState || thread.state === effectiveState)
         && (!filters.numberId || thread.channelNumberId === filters.numberId)
         && (!filters.teamId || thread.assignedTeamId === filters.teamId)
         && (filters.tab !== "Mine" || thread.assignedUserId === actor.userId || (!thread.assignedUserId && chat.assignedTo === actor.name))
@@ -269,6 +277,10 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
   if (filters.tab === "Unassigned") conversationFilters.push(`thread."assignedUserId" IS NULL AND thread."assignedTeamId" IS NULL`);
   if (filters.tab === "Team") conversationFilters.push(`thread."assignedTeamId" IS NOT NULL`);
   if (filters.tab === "Failed") conversationFilters.push(`EXISTS (SELECT 1 FROM "Message" failed WHERE failed."workspaceId"=$1 AND failed."conversationId"=thread."id" AND failed."status"='FAILED')`);
+  if (filters.tab === "Open" || filters.tab === "Waiting" || filters.tab === "Resolved") {
+    const tabState = filters.tab.toUpperCase();
+    conversationFilters.push(`thread."state"=${bind(tabState)}`);
+  }
   if (filters.state && filters.state !== "All states") {
     const state = filters.state === "Open" ? "OPEN" : filters.state === "Waiting" ? "WAITING" : filters.state === "Resolved" ? "RESOLVED" : filters.state;
     conversationFilters.push(`thread."state"=${bind(state)}`);
@@ -344,7 +356,7 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
            FROM "Message" message WHERE message."workspaceId"=$1 AND message."contactId"=contact."id"
              AND (${isAdmin ? "TRUE" : `message."conversationId" IN (SELECT vc."id" FROM visible_conversations vc WHERE vc."contactId"=contact."id")`})
            GROUP BY message."channelNumberId"
-         ) waiting WHERE waiting."lastInboundAt" IS NOT NULL AND waiting."lastInboundAt">COALESCE(waiting."lastOutboundAt",'-infinity'::timestamp)
+         ) waiting WHERE waiting."lastInboundAt" IS NOT NULL AND waiting."lastInboundAt">COALESCE(waiting."lastOutboundAt",'-infinity'::timestamptz)
        ) queueStats ON TRUE
      )
      SELECT b.*,(${matchesExpression}) AS "matchesFilter" FROM base b ORDER BY b."lastActivityAt" DESC,b."id"`,

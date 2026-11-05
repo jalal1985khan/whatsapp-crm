@@ -8,21 +8,28 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Archive, ArrowRightLeft, ArrowUpRight, AtSign, BarChart3, Bell, Check, CheckCheck,
-  ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Filter, Inbox,
-  Info, Lock, MessageCircle, MessageSquare, MoreHorizontal, MoreVertical, Paperclip, Plus, Search, Send,
+  ChevronDown, ChevronLeft, ChevronRight, CircleHelp, Clock3, Filter,
+  Info, Key, Lock, LogOut, MessageCircle, MessageSquare, MoreHorizontal, MoreVertical, Paperclip, Plus, Search, Send,
   Settings2, ShieldCheck, Smartphone, Smile, Sparkles, Users, Wifi, X,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
-import { Message, MessageAvatar, MessageContent, MessageFooter } from "@/components/ui/message";
 import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from "@/components/ui/message-scroller";
+import { cn } from "@/lib/utils";
 
 type Chat = {
   id: string;
@@ -88,55 +95,56 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
   const messageId = message.id ?? `${chat.id}-${index}`;
   return (
     <MessageScrollerItem id={message.id ? `crm-message-${message.id}` : undefined} messageId={messageId} scrollAnchor={!message.mine}>
-      <div className={`flex w-full mb-1.5 ${message.mine ? "justify-end" : "justify-start"}`}>
+      <div className={`flex w-full mb-2 ${message.mine ? "justify-end" : "justify-start"}`}>
         <div
-          className={`relative max-w-[85%] sm:max-w-[72%] md:max-w-[65%] rounded-lg px-3 py-1.5 shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] text-[14.2px] ${
+          className={cn(
+            "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg px-3.5 py-2 text-xs shadow-xs leading-relaxed",
             message.mine
-              ? "rounded-tr-none bg-[#d9fdd3] text-[#111b21]"
-              : "rounded-tl-none bg-[#ffffff] text-[#111b21]"
-          }`}
+              ? "rounded-tr-none bg-primary/15 text-foreground border border-primary/25"
+              : "rounded-tl-none bg-card text-card-foreground border border-border"
+          )}
         >
           {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("image/") && (
-            <Image src={message.media.accessUrl} alt={message.media.filename || "WhatsApp image"} width={480} height={360} unoptimized className="mb-1 max-h-72 w-auto max-w-full rounded-md object-contain" />
+            <Image src={message.media.accessUrl} alt={message.media.filename || "Attachment image"} width={480} height={360} unoptimized className="mb-2 max-h-72 w-auto max-w-full rounded-md object-contain" />
           )}
           {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("video/") && (
-            <video controls preload="none" src={message.media.accessUrl} className="mb-1 max-h-72 max-w-full rounded-md" />
+            <video controls preload="none" src={message.media.accessUrl} className="mb-2 max-h-72 max-w-full rounded-md" />
           )}
           {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("audio/") && (
-            <audio controls preload="none" src={message.media.accessUrl} className="mb-1 max-w-full" />
+            <audio controls preload="none" src={message.media.accessUrl} className="mb-2 max-w-full" />
           )}
           {message.media && !/^(image|audio|video)\//.test(message.media.mimeType || "") && (
-            <div className="mb-1.5 flex items-center gap-2 rounded-md bg-black/5 px-2.5 py-2">
-              <Paperclip className="size-4 shrink-0 text-[#54656f]" />
+            <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/50 px-2.5 py-1.5">
+              <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-[#111b21]">{message.media.filename || `${message.media.type} attachment`}</p>
-                <p className="text-[10px] text-[#667781]">{message.media.mimeType || message.media.type}{message.media.size ? ` · ${(message.media.size / (1024 * 1024)).toFixed(1)} MB` : ""}</p>
+                <p className="truncate text-xs font-medium text-foreground">{message.media.filename || `${message.media.type} attachment`}</p>
+                <p className="text-[10px] text-muted-foreground">{message.media.mimeType || message.media.type}{message.media.size ? ` · ${(message.media.size / (1024 * 1024)).toFixed(1)} MB` : ""}</p>
               </div>
               {message.media.stored && message.media.accessUrl && (
-                <a href={message.media.accessUrl} className="shrink-0 text-xs font-semibold text-[#008069] hover:underline">Download</a>
+                <a href={message.media.accessUrl} className="shrink-0 text-xs font-semibold text-primary hover:underline">Download</a>
               )}
             </div>
           )}
-          <span className="whitespace-pre-wrap break-words leading-relaxed inline">
+          <span className="whitespace-pre-wrap break-words inline text-xs">
             {message.media?.caption || message.text}
           </span>
-          <span className="float-right ml-2.5 mt-1 -mb-0.5 inline-flex items-center gap-1 text-[11px] text-[#667781] select-none">
+          <span className="float-right ml-3 mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground select-none">
             {message.mine && message.senderNumberId && (
-              <span className="text-[10px] text-[#008069] font-medium mr-0.5">
+              <span className="text-[10px] text-primary font-medium mr-0.5">
                 {senderNumbers.find((number) => number.id === message.senderNumberId)?.label ?? "WhatsApp"}
               </span>
             )}
             <span>{message.time}</span>
             {message.mine && ["sent", "delivered", "read"].includes(message.status ?? "") && (
-              <CheckCheck className={`size-3.5 ${message.status === "read" ? "text-[#53bdeb]" : "text-[#8696a0]"}`} />
+              <CheckCheck className={cn("size-3.5", message.status === "read" ? "text-primary font-semibold" : "text-muted-foreground")} />
             )}
-            {message.mine && message.status === "sent" && <Check className="size-3.5 text-[#8696a0]" />}
-            {message.mine && (message.status === "queued" || message.status === "local") && <Clock3 className="size-3 text-[#8696a0]" />}
+            {message.mine && message.status === "sent" && <Check className="size-3 text-muted-foreground" />}
+            {message.mine && (message.status === "queued" || message.status === "local") && <Clock3 className="size-3 text-muted-foreground" />}
             {message.mine && message.status === "failed" && (
-              <span className="text-red-600 font-semibold text-[10px] flex items-center gap-1">
+              <span className="text-destructive font-semibold text-[10px] flex items-center gap-1">
                 Failed
                 {canRetry && message.id && (
-                  <button type="button" onClick={() => onRetry(message.id!)} className="underline hover:text-red-700 ml-0.5">
+                  <button type="button" onClick={() => onRetry(message.id!)} className="underline hover:text-destructive/80 ml-0.5">
                     Retry
                   </button>
                 )}
@@ -150,17 +158,19 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
 }
 
 function eligibleSenders(chat: Chat | undefined, numbers: SenderNumber[]) {
-  if (chat?.eligibleSenderNumberIds) {
+  if (chat?.eligibleSenderNumberIds && chat.eligibleSenderNumberIds.length > 0) {
     const eligibleIds = new Set(chat.eligibleSenderNumberIds);
-    return numbers.filter((number) => number.state === "Active" && eligibleIds.has(number.id));
+    const filtered = numbers.filter((number) => number.state === "Active" && eligibleIds.has(number.id));
+    if (filtered.length > 0) return filtered;
   }
-  return numbers.filter((number) => {
-    if (number.state !== "Active") return false;
+  const activeNumbers = numbers.filter((number) => number.state === "Active");
+  const filtered = activeNumbers.filter((number) => {
     if (!number.allowedTeamIds?.length) return true;
     const existingThread = chat?.conversationAssignments?.find((thread) => thread.channelNumberId === number.id);
     const teamId = existingThread ? existingThread.assignedTeamId : chat?.assignedTeamId;
     return Boolean(teamId && number.allowedTeamIds.includes(teamId));
   });
+  return filtered.length > 0 ? filtered : activeNumbers;
 }
 
 function unansweredQueueAgeMinutes(chat: Chat) {
@@ -204,19 +214,31 @@ function templateVariables(body: string) {
 }
 
 function IconButton({ label, children, className = "", onClick }: { label: string; children: React.ReactNode; className?: string; onClick?: () => void }) {
-  return <Button type="button" aria-label={label} title={label} onClick={onClick} className={`inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${className}`} variant="ghost">{children}</Button>;
+  return (
+    <Button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      variant="ghost"
+      size="icon"
+      className={cn("size-8 text-muted-foreground hover:text-foreground", className)}
+    >
+      {children}
+    </Button>
+  );
 }
 
 type AdminAlert = { id: string; severity: "INFO" | "WARNING" | "CRITICAL"; category: string; title: string; message: string; targetType: string | null; targetId: string | null; createdAt: string; readAt: string | null };
 
-export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; name: string; email: string; role: string }; cannedReplies?: CannedReply[] }) {
+export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { user: { id: string; name: string; email: string; role: string }; cannedReplies?: CannedReply[]; initialNumbers?: SenderNumber[] }) {
   const router = useRouter();
   const [chats, setChats] = useState<Chat[]>([]);
   const [loadingChatId, setLoadingChatId] = useState("");
   const [viewThread, setViewThread] = useState<{ contactId: string; numberId: string } | null>(null);
   const pendingMessageJumpId = useRef("");
-  const [senderNumbers, setSenderNumbers] = useState<SenderNumber[]>([]);
-  const [channelNumbers, setChannelNumbers] = useState<SenderNumber[]>([]);
+  const [senderNumbers, setSenderNumbers] = useState<SenderNumber[]>(() => initialNumbers.filter((n) => n.state === "Active"));
+  const [channelNumbers, setChannelNumbers] = useState<SenderNumber[]>(() => initialNumbers);
   const [templates, setTemplates] = useState<SyncedTemplate[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -320,7 +342,10 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
   const currentThreadNumberId = activeChat?.currentSenderNumberId ?? [...(activeChat?.messages ?? [])].reverse().find((message) => message.senderNumberId)?.senderNumberId;
   const activeNumber = senderNumbersForChat.find((number) => number.id === activeNumberId)
     ?? senderNumbersForChat.find((number) => number.id === currentThreadNumberId)
+    ?? senderNumbersForChat.find((number) => number.state === "Active")
+    ?? senderNumbers.find((number) => number.state === "Active")
     ?? senderNumbersForChat[0]
+    ?? senderNumbers[0]
     ?? null;
   const sendingThreadAssignment = activeChat?.conversationAssignments?.find((thread) => thread.channelNumberId === activeNumber?.id);
   const latestInboundForSender = activeChat?.messages.filter((message) => !message.mine && message.senderNumberId === activeNumber?.id).at(-1);
@@ -328,7 +353,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
     ? sendingThreadAssignment.serviceWindowExpiresAt
     : latestInboundForSender?.createdAt ? new Date(new Date(latestInboundForSender.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString() : null;
   const serviceWindowOpen = Boolean(serviceWindowExpiresAt && new Date(serviceWindowExpiresAt).getTime() > windowCheckTime);
-  const activeSenderEligible = Boolean(activeNumber && activeChat?.detailLoaded);
+  const activeSenderEligible = Boolean(activeNumber);
   const eligibleAssignees = activeThreadTeamId ? teams.find((team) => team.id === activeThreadTeamId)?.members ?? [] : teamMembers;
   const activeTags = activeChat?.tags ?? (activeChat?.label ? [activeChat.label] : []);
   const messageSenderIds = (activeChat?.messages ?? []).map((message) => message.senderNumberId).filter((id): id is string => Boolean(id));
@@ -775,333 +800,350 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
   }
 
   return (
-    <main className="flex h-screen min-h-[600px] overflow-hidden bg-[#efeae2] text-[#111b21] font-sans">
-      {/* 1. Slim Left Rail (WhatsApp Desktop Style) */}
-      <aside className="hidden w-[64px] shrink-0 flex-col items-center justify-between border-r border-[#d1d7db] bg-[#f0f2f5] py-3 sm:flex select-none">
-        <div className="flex flex-col items-center gap-4">
-          <Link href="/" aria-label="WhatsApp CRM" className="flex size-10 items-center justify-center rounded-full bg-[#00a884] text-white shadow-xs">
-            <MessageSquare className="size-5 fill-current" />
-          </Link>
-          <div className="flex flex-col items-center gap-1.5">
-            <RailLink href="/" active label="Chats">
-              <MessageSquare className="size-5" />
-            </RailLink>
-            <RailLink href="/customers" label="Customers">
-              <Users className="size-5" />
-            </RailLink>
-            {adminCanPurgeMedia && (
-              <>
-                <RailLink href="/admin/numbers" label="WhatsApp Numbers">
-                  <Smartphone className="size-5" />
-                </RailLink>
-                <RailLink href="/reports" label="Reports">
-                  <BarChart3 className="size-5" />
-                </RailLink>
-              </>
-            )}
-          </div>
+    <main className="flex h-screen min-h-[600px] overflow-hidden bg-background text-foreground font-sans flex-col">
+      {notice && (
+        <div role="status" className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-xs text-amber-900 dark:text-amber-200 z-50 shrink-0">
+          <Info className="size-4 shrink-0 text-amber-700 dark:text-amber-400" />
+          <span className="flex-1 font-medium">{notice}</span>
+          <button onClick={() => setNotice("")} className="text-amber-700 hover:text-amber-900 dark:text-amber-400" type="button" aria-label="Dismiss alert">
+            <X className="size-4" />
+          </button>
         </div>
+      )}
 
-        <div className="flex flex-col items-center gap-2">
-          {adminCanPurgeMedia && (
-            <Link
-              href="/admin/numbers"
-              aria-label="Admin settings"
-              title="Admin settings"
-              className="flex size-10 items-center justify-center rounded-xl text-[#54656f] transition-colors hover:bg-[#e9edef] hover:text-[#111b21]"
-            >
-              <Settings2 className="size-5" />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* 1. Slim Left Rail (WhatsApp Desktop Style) */}
+        <aside className="hidden w-[64px] shrink-0 flex-col items-center justify-between border-r border-border bg-muted/40 py-3 sm:flex select-none">
+          <div className="flex flex-col items-center gap-4">
+            <Link href="/" aria-label="WhatsApp CRM" className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+              <MessageSquare className="size-5 fill-current" />
             </Link>
-          )}
-          <RailButton label="Help" onClick={() => setHelpOpen(true)}>
-            <CircleHelp className="size-5" />
-          </RailButton>
+            <div className="flex flex-col items-center gap-1.5">
+              <RailLink href="/" active label="Chats">
+                <MessageSquare className="size-5" />
+              </RailLink>
+              <RailLink href="/customers" label="Customers">
+                <Users className="size-5" />
+              </RailLink>
+              {adminCanPurgeMedia && (
+                <>
+                  <RailLink href="/admin/numbers" label="WhatsApp Numbers">
+                    <Smartphone className="size-5" />
+                  </RailLink>
+                  <RailLink href="/reports" label="Reports">
+                    <BarChart3 className="size-5" />
+                  </RailLink>
+                </>
+              )}
+            </div>
+          </div>
 
-          {/* User profile with dropdown */}
-          <div className="relative mt-1">
-            <Button
-              onClick={() => setUserMenu((open) => !open)}
-              aria-label="Open account menu"
-              title={user.name}
-              className="size-10 rounded-full p-0 hover:bg-[#e9edef]"
-              type="button"
-              variant="ghost"
-            >
-              <Avatar className="size-9 border border-[#d1d7db]">
-                <AvatarFallback className="bg-[#00a884]/15 text-xs font-semibold text-[#008069]">
-                  {user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
-            {userMenu && (
-              <div className="absolute bottom-1 left-12 z-50 w-60 rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
-                <div className="px-3 py-2 border-b border-gray-100">
-                  <div className="truncate text-xs font-semibold text-[#111b21]">{user.name}</div>
-                  <div className="truncate text-[11px] text-[#667781]">{user.email}</div>
-                  <div className="mt-1 inline-block rounded bg-[#d9fdd3] px-1.5 py-0.5 text-[10px] font-medium text-[#008069]">{user.role}</div>
-                </div>
-                <div className="py-1">
-                  <Link href="/account/security" onClick={() => setUserMenu(false)} className="block rounded-lg px-3 py-2 text-xs text-[#111b21] hover:bg-[#f0f2f5]">
-                    Account security
+          <div className="flex flex-col items-center gap-2">
+            {adminCanPurgeMedia && (
+              <Button asChild variant="ghost" size="icon" className="size-10 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
+                <Link href="/admin/numbers" aria-label="Admin settings" title="Admin settings">
+                  <Settings2 className="size-5" />
+                </Link>
+              </Button>
+            )}
+            <RailButton label="Help" onClick={() => setHelpOpen(true)}>
+              <CircleHelp className="size-5" />
+            </RailButton>
+
+            {/* User profile with standard Shadcn DropdownMenu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  aria-label="Open account menu"
+                  title={user.name}
+                  className="size-10 rounded-full p-0 hover:bg-muted"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Avatar className="size-9 border border-border">
+                    <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                      {user.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="right" className="w-60">
+                <DropdownMenuLabel>
+                  <div className="truncate text-xs font-semibold">{user.name}</div>
+                  <div className="truncate text-[11px] font-normal text-muted-foreground">{user.email}</div>
+                  <Badge variant="secondary" className="mt-1 text-[10px]">{user.role}</Badge>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/account/security" className="text-xs cursor-pointer">
+                    <Key className="size-3.5 mr-2" /> Account security
                   </Link>
-                  {adminCanPurgeMedia && (
-                    <Link href="/admin/numbers" onClick={() => setUserMenu(false)} className="block rounded-lg px-3 py-2 text-xs text-[#111b21] hover:bg-[#f0f2f5]">
-                      Workspace administration
+                </DropdownMenuItem>
+                {adminCanPurgeMedia && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/numbers" className="text-xs cursor-pointer">
+                      <Settings2 className="size-3.5 mr-2" /> Workspace administration
                     </Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => void signOut()} className="text-xs text-destructive focus:text-destructive cursor-pointer">
+                  <LogOut className="size-3.5 mr-2" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </aside>
+
+        {/* 2. Conversations Column (WhatsApp Chat List) */}
+        <section className={`${activeId ? "hidden sm:flex" : "flex"} w-full sm:w-[360px] md:w-[390px] lg:w-[420px] shrink-0 flex-col border-r border-border bg-card h-full`}>
+          {/* Chats Header */}
+          <div className="flex h-[60px] items-center justify-between border-b border-border bg-muted/40 px-4 shrink-0">
+            <h1 className="text-xl font-bold tracking-tight text-foreground">Chats</h1>
+            <div className="flex items-center gap-1 text-muted-foreground">
+              {(user.role === "Owner" || user.role === "Admin") && (
+                <div className="relative">
+                  <IconButton label={`Admin alerts${alertCount ? `, ${alertCount} unread` : ""}`} onClick={() => { setAlertsOpen((open) => !open); void refreshAlerts(); }}>
+                    <Bell className="size-5 text-muted-foreground" />
+                    {alertCount > 0 && (
+                      <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-4 text-destructive-foreground">
+                        {alertCount > 99 ? "99+" : alertCount}
+                      </span>
+                    )}
+                  </IconButton>
+                  {alertsOpen && (
+                    <Card aria-label="Admin alerts" className="absolute left-0 sm:left-auto sm:right-0 top-11 z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden border-border shadow-2xl">
+                      <CardHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-3 bg-muted/40 space-y-0">
+                        <div>
+                          <CardTitle className="text-sm font-semibold text-foreground">Admin alerts</CardTitle>
+                          <p className="text-[10px] text-muted-foreground">Number, delivery, webhook, and failover events</p>
+                        </div>
+                        <Button variant="ghost" size="sm" disabled={!alertCount} onClick={() => void markAlertRead()} className="text-xs text-primary hover:bg-primary/10">
+                          Mark read
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
+                        {alerts.map((alert) => {
+                          const params = new URLSearchParams();
+                          if (alert.targetId && alert.targetType === "CHANNEL_NUMBER") params.set("number", alert.targetId);
+                          if (alert.targetId && alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT") params.set("waba", alert.targetId);
+                          const numberTarget = params.size > 0 ? `/admin/numbers?${params.toString()}` : "/admin/numbers";
+                          const href = alert.targetType === "WEBHOOK_EVENT" ? "/admin/webhooks" : alert.targetType === "CHANNEL_NUMBER" || alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT" || alert.targetType === "FAILOVER_EVENT" ? numberTarget : alert.targetType === "CONTACT" && alert.targetId ? `/?contact=${encodeURIComponent(alert.targetId)}` : "/admin/numbers";
+                          return (
+                            <Link href={href} key={alert.id} onClick={() => { setAlertsOpen(false); if (!alert.readAt) void markAlertRead(alert.id); }} className={cn("block border-b border-border px-4 py-3 hover:bg-muted/40 transition-colors", alert.readAt ? "bg-card" : "bg-primary/5")}>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="text-xs font-semibold text-foreground">{alert.title}</p>
+                                <Badge variant={alert.severity === "CRITICAL" ? "destructive" : "secondary"}>
+                                  {alert.severity === "CRITICAL" ? "Urgent" : "Info"}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{alert.message}</p>
+                              <p className="mt-2 text-[10px] text-muted-foreground">{new Date(alert.createdAt).toLocaleString()}</p>
+                            </Link>
+                          );
+                        })}
+                        {alerts.length === 0 && <p className="p-6 text-center text-xs text-muted-foreground">No alerts yet. Critical WhatsApp events will appear here.</p>}
+                      </CardContent>
+                    </Card>
                   )}
-                  <Button onClick={() => void signOut()} className="w-full justify-start rounded-lg px-3 py-2 text-left text-xs text-red-600 hover:bg-red-50 hover:text-red-700" type="button" variant="ghost">
-                    Sign out
+                </div>
+              )}
+              <Button asChild variant="ghost" size="icon" className="size-9 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+                <Link href="/customers?new=1" aria-label="New chat" title="New chat">
+                  <Plus className="size-5" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* WhatsApp Search Bar */}
+          <div className="p-2.5 pb-2 border-b border-border bg-card">
+            <div className="relative flex items-center rounded-lg bg-muted/50 px-3 py-1.5 focus-within:bg-card focus-within:ring-1 focus-within:ring-primary transition-all">
+              <Search className="size-4 shrink-0 text-muted-foreground mr-2.5" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search or start new chat"
+                className="w-full bg-transparent text-[13.5px] text-foreground placeholder:text-muted-foreground outline-none"
+              />
+              {query && (
+                <button type="button" onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground ml-1" aria-label="Clear search">
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* WhatsApp Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 border-b border-border">
+            {["All", "Unread", "Open", "Waiting", "Resolved", "Mine"].map((tab) => {
+              const label = tab === "All" ? "All messages" : tab;
+              const isActive = activeTab === (tab === "All" ? "All messages" : tab);
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(label)}
+                  className={cn(
+                    "shrink-0 rounded-full px-3 py-1 text-xs transition-colors cursor-pointer",
+                    isActive
+                      ? "bg-primary/15 text-primary font-semibold"
+                      : "bg-muted/60 text-muted-foreground hover:bg-muted font-medium"
+                  )}
+                >
+                  {tab}
+                  {tab === "Unread" && unreadCount > 0 && (
+                    <span className="ml-1.5 rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            <IconButton label="Filter conversations" className="ml-auto size-7 shrink-0 text-muted-foreground" onClick={() => setFilterOpen((open) => !open)}>
+              <Filter className="size-3.5" />
+            </IconButton>
+          </div>
+
+          {/* Saved Inbox Views */}
+          {savedInboxViews.length > 0 && (
+            <div aria-label="Saved inbox views" className="flex gap-1.5 overflow-x-auto px-3 py-1.5 border-b border-border">
+              {savedInboxViews.map((view) => (
+                <div key={view.id} className="flex shrink-0 items-center rounded-full border border-border bg-card">
+                  <Button type="button" size="sm" variant="ghost" className="h-6 rounded-r-none px-2 text-[10px] text-muted-foreground" onClick={() => applyInboxView(view)}>
+                    {view.name}
+                  </Button>
+                  <Button type="button" size="icon" variant="ghost" aria-label={`Delete ${view.name}`} className="size-6 rounded-l-none text-muted-foreground hover:text-destructive" disabled={savedInboxViewsBusy} onClick={() => void deleteInboxView(view)}>
+                    <X className="size-3" />
                   </Button>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </aside>
-
-      {/* 2. Conversations Column (WhatsApp Chat List) */}
-      <section className={`${activeId ? "hidden sm:flex" : "flex"} w-full sm:w-[360px] md:w-[390px] lg:w-[420px] shrink-0 flex-col border-r border-[#d1d7db] bg-white h-full`}>
-        {/* Chats Header */}
-        <div className="flex h-[60px] items-center justify-between border-b border-[#d1d7db] bg-[#f0f2f5] px-4 shrink-0">
-          <h1 className="text-xl font-bold tracking-tight text-[#111b21]">Chats</h1>
-          <div className="flex items-center gap-1 text-[#54656f]">
-            {(user.role === "Owner" || user.role === "Admin") && (
-              <div className="relative">
-                <IconButton label={`Admin alerts${alertCount ? `, ${alertCount} unread` : ""}`} onClick={() => { setAlertsOpen((open) => !open); void refreshAlerts(); }}>
-                  <Bell className="size-5 text-[#54656f]" />
-                  {alertCount > 0 && (
-                    <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-semibold leading-4 text-white">
-                      {alertCount > 99 ? "99+" : alertCount}
-                    </span>
-                  )}
-                </IconButton>
-                {alertsOpen && (
-                  <section aria-label="Admin alerts" className="absolute left-0 sm:left-auto sm:right-0 top-11 z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#d1d7db] bg-white shadow-2xl">
-                    <div className="flex items-center justify-between border-b border-[#e9edef] px-4 py-3 bg-[#f0f2f5]">
-                      <div>
-                        <h2 className="text-sm font-semibold text-[#111b21]">Admin alerts</h2>
-                        <p className="text-[10px] text-[#667781]">Number, delivery, webhook, and failover events</p>
-                      </div>
-                      <Button variant="ghost" size="sm" disabled={!alertCount} onClick={() => void markAlertRead()} className="text-xs text-[#008069] hover:bg-black/5">
-                        Mark read
-                      </Button>
-                    </div>
-                    <div className="max-h-[60vh] overflow-y-auto wa-scrollbar">
-                      {alerts.map((alert) => {
-                        const params = new URLSearchParams();
-                        if (alert.targetId && alert.targetType === "CHANNEL_NUMBER") params.set("number", alert.targetId);
-                        if (alert.targetId && alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT") params.set("waba", alert.targetId);
-                        const numberTarget = params.size > 0 ? `/admin/numbers?${params.toString()}` : "/admin/numbers";
-                        const href = alert.targetType === "WEBHOOK_EVENT" ? "/admin/webhooks" : alert.targetType === "CHANNEL_NUMBER" || alert.targetType === "WHATSAPP_BUSINESS_ACCOUNT" || alert.targetType === "FAILOVER_EVENT" ? numberTarget : alert.targetType === "CONTACT" && alert.targetId ? `/?contact=${encodeURIComponent(alert.targetId)}` : "/admin/numbers";
-                        return (
-                          <Link href={href} key={alert.id} onClick={() => { setAlertsOpen(false); if (!alert.readAt) void markAlertRead(alert.id); }} className={`block border-b border-[#f0f2f5] px-4 py-3 hover:bg-[#f5f6f6] ${alert.readAt ? "bg-white" : "bg-[#f0fdf4]"}`}>
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-xs font-semibold text-[#111b21]">{alert.title}</p>
-                              <Badge variant={alert.severity === "CRITICAL" ? "warning" : "secondary"}>
-                                {alert.severity === "CRITICAL" ? "Urgent" : "Info"}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-[11px] leading-relaxed text-[#667781]">{alert.message}</p>
-                            <p className="mt-2 text-[10px] text-[#8696a0]">{new Date(alert.createdAt).toLocaleString()}</p>
-                          </Link>
-                        );
-                      })}
-                      {alerts.length === 0 && <p className="p-6 text-center text-xs text-[#667781]">No alerts yet. Critical WhatsApp events will appear here.</p>}
-                    </div>
-                  </section>
-                )}
-              </div>
-            )}
-            <Link href="/customers?new=1" aria-label="New chat" title="New chat" className="flex size-9 items-center justify-center rounded-full text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21] transition-colors">
-              <Plus className="size-5" />
-            </Link>
-          </div>
-        </div>
-
-        {/* WhatsApp Search Bar */}
-        <div className="p-2.5 pb-2 border-b border-[#f0f2f5] bg-white">
-          <div className="relative flex items-center rounded-lg bg-[#f0f2f5] px-3 py-1.5 focus-within:bg-white focus-within:ring-1 focus-within:ring-[#00a884] transition-all">
-            <Search className="size-4 shrink-0 text-[#54656f] mr-2.5" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search or start new chat"
-              className="w-full bg-transparent text-[13.5px] text-[#111b21] placeholder:text-[#8696a0] outline-none"
-            />
-            {query && (
-              <button type="button" onClick={() => setQuery("")} className="text-[#8696a0] hover:text-[#111b21] ml-1">
-                <X className="size-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* WhatsApp Filter Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 wa-scrollbar border-b border-[#f0f2f5]">
-          {["All", "Unread", "Open", "Waiting", "Resolved", "Mine"].map((tab) => {
-            const label = tab === "All" ? "All messages" : tab;
-            const isActive = activeTab === (tab === "All" ? "All messages" : tab);
-            return (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(label)}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs transition-colors ${
-                  isActive
-                    ? "bg-[#d9fdd3] text-[#008069] font-semibold"
-                    : "bg-[#f0f2f5] text-[#54656f] hover:bg-[#e9edef] font-medium"
-                }`}
-              >
-                {tab}
-                {tab === "Unread" && unreadCount > 0 && (
-                  <span className="ml-1.5 rounded-full bg-[#008069] px-1 text-[10px] text-white">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          <IconButton label="Filter conversations" className="ml-auto size-7 shrink-0 text-[#54656f]" onClick={() => setFilterOpen((open) => !open)}>
-            <Filter className="size-3.5" />
-          </IconButton>
-        </div>
-
-        {/* Saved Inbox Views */}
-        {savedInboxViews.length > 0 && (
-          <div aria-label="Saved inbox views" className="flex gap-1.5 overflow-x-auto px-3 py-1.5 wa-scrollbar border-b border-[#f0f2f5]">
-            {savedInboxViews.map((view) => (
-              <div key={view.id} className="flex shrink-0 items-center rounded-full border border-[#d1d7db] bg-white">
-                <Button type="button" size="sm" variant="ghost" className="h-6 rounded-r-none px-2 text-[10px] text-[#54656f]" onClick={() => applyInboxView(view)}>
-                  {view.name}
-                </Button>
-                <Button type="button" size="icon" variant="ghost" aria-label={`Delete ${view.name}`} className="size-6 rounded-l-none text-[#8696a0] hover:text-red-600" disabled={savedInboxViewsBusy} onClick={() => void deleteInboxView(view)}>
-                  <X className="size-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Advanced Filters Drawer */}
-        {filterOpen && (
-          <div className="grid grid-cols-2 gap-2 p-3 bg-[#f0f2f5]/60 border-b border-[#d1d7db]">
-            <SelectControl aria-label="Filter by state" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
-              <option>All states</option>
-              <option>Open</option>
-              <option>Waiting</option>
-              <option>Resolved</option>
-            </SelectControl>
-            <SelectControl aria-label="Filter by WhatsApp number" value={numberFilter} onChange={(event) => setNumberFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
-              <option value="">All numbers</option>
-              {channelNumbers.map((number) => <option key={number.id} value={number.id}>{number.label} · {number.number}</option>)}
-            </SelectControl>
-            <SelectControl aria-label="Filter by team" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
-              <option value="">All teams</option>
-              {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-            </SelectControl>
-            <SelectControl aria-label="Filter by tag" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="h-8 rounded-md border border-[#d1d7db] bg-white px-2 text-[11px]">
-              <option value="">All tags</option>
-              {[...new Set([...availableTags, ...chats.flatMap((chat) => chat.tags ?? (chat.label ? [chat.label] : []))])].sort().map((tag) => <option key={tag} value={tag}>{tag}</option>)}
-            </SelectControl>
-            <Button type="button" size="sm" variant="outline" className="h-8 text-[11px] bg-white" onClick={() => { setStateFilter("All states"); setNumberFilter(""); setTeamFilter(""); setTagFilter(""); setDateFrom(""); setDateTo(""); setActiveTab("All messages"); }}>
-              Reset filters
-            </Button>
-            <Button type="button" size="sm" variant="outline" className="h-8 text-[11px] bg-white" onClick={() => setSaveViewOpen((open) => !open)}>
-              Save view
-            </Button>
-            {saveViewOpen && (
-              <div className="col-span-2 flex gap-2 pt-1">
-                <Input aria-label="Saved view name" maxLength={40} placeholder="Name this view" value={saveViewName} onChange={(event) => setSaveViewName(event.target.value)} className="h-8 text-xs bg-white" />
-                <Button type="button" size="sm" className="h-8 bg-[#00a884] text-white hover:bg-[#008f6f]" disabled={savedInboxViewsBusy || !saveViewName.trim()} onClick={() => void saveInboxView()}>
-                  {savedInboxViewsBusy ? "Saving…" : "Save"}
-                </Button>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* WhatsApp Chat List Items */}
-        <div className="flex-1 overflow-y-auto wa-scrollbar">
-          {visibleChats.map((chat) => {
-            const isSelected = activeId === chat.id;
-            return (
-              <button
-                key={chat.id}
-                onClick={() => openChat(chat)}
-                className={`flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors cursor-pointer border-b border-[#f0f2f5] ${
-                  isSelected ? "bg-[#f0f2f5]" : "hover:bg-[#f5f6f6] bg-white"
-                }`}
-                type="button"
-              >
-                <Avatar className="size-12 shrink-0">
-                  <AvatarFallback className={`${chat.color} text-white font-medium text-sm`}>
-                    {chat.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-1 mb-0.5">
-                    <span className="truncate text-[15.5px] font-medium text-[#111b21]">{chat.name}</span>
-                    <span className={`shrink-0 text-[12px] ${chat.unread ? "text-[#00a884] font-semibold" : "text-[#667781]"}`}>
-                      {chat.time}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-[13.5px] text-[#667781] leading-tight flex-1">
-                      {chat.preview}
-                    </p>
-                    {chat.unread ? (
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#25d366] text-[11px] font-semibold text-white">
-                        {chat.unread}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[#8696a0]">
-                    <span className="capitalize">{chat.state ?? "Open"}</span>
-                    {chat.messageCount ? (
-                      <span>· {channelNumbers.find((n) => n.id === chat.latestMessageSenderNumberId)?.label ?? "WhatsApp"}</span>
-                    ) : null}
-                    <QueueAgeBadge chat={chat} />
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-          {visibleChats.length === 0 && (
-            <div className="p-8 text-center text-sm text-[#667781]">
-              No conversations found.
+              ))}
             </div>
           )}
-        </div>
 
-        {/* Bottom Numbers Status Pill */}
-        <div className="border-t border-[#d1d7db] p-3 bg-[#f0f2f5]">
-          <Link href="/admin/numbers" className="flex items-center gap-2.5 rounded-lg bg-white p-2.5 shadow-2xs hover:bg-[#fafbfa] transition-colors border border-[#e9edef]">
-            <div className="flex size-7 items-center justify-center rounded-full bg-[#00a884]/15 text-[#008069]">
-              <Wifi className="size-3.5" />
+          {/* Advanced Filters Drawer */}
+          {filterOpen && (
+            <div className="grid grid-cols-2 gap-2 p-3 bg-muted/40 border-b border-border">
+              <SelectControl aria-label="Filter by state" value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} className="h-8 rounded-md border border-border bg-card px-2 text-[11px] text-foreground">
+                <option>All states</option>
+                <option>Open</option>
+                <option>Waiting</option>
+                <option>Resolved</option>
+              </SelectControl>
+              <SelectControl aria-label="Filter by WhatsApp number" value={numberFilter} onChange={(event) => setNumberFilter(event.target.value)} className="h-8 rounded-md border border-border bg-card px-2 text-[11px] text-foreground">
+                <option value="">All numbers</option>
+                {channelNumbers.map((number) => <option key={number.id} value={number.id}>{number.label} · {number.number}</option>)}
+              </SelectControl>
+              <SelectControl aria-label="Filter by team" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)} className="h-8 rounded-md border border-border bg-card px-2 text-[11px] text-foreground">
+                <option value="">All teams</option>
+                {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </SelectControl>
+              <SelectControl aria-label="Filter by tag" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)} className="h-8 rounded-md border border-border bg-card px-2 text-[11px] text-foreground">
+                <option value="">All tags</option>
+                {[...new Set([...availableTags, ...chats.flatMap((chat) => chat.tags ?? (chat.label ? [chat.label] : []))])].sort().map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+              </SelectControl>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-[11px] bg-card" onClick={() => { setStateFilter("All states"); setNumberFilter(""); setTeamFilter(""); setTagFilter(""); setDateFrom(""); setDateTo(""); setActiveTab("All messages"); }}>
+                Reset filters
+              </Button>
+              <Button type="button" size="sm" variant="outline" className="h-8 text-[11px] bg-card" onClick={() => setSaveViewOpen((open) => !open)}>
+                Save view
+              </Button>
+              {saveViewOpen && (
+                <div className="col-span-2 flex gap-2 pt-1">
+                  <Input aria-label="Saved view name" maxLength={40} placeholder="Name this view" value={saveViewName} onChange={(event) => setSaveViewName(event.target.value)} className="h-8 text-xs bg-card" />
+                  <Button type="button" size="sm" className="h-8" disabled={savedInboxViewsBusy || !saveViewName.trim()} onClick={() => void saveInboxView()}>
+                    {savedInboxViewsBusy ? "Saving…" : "Save"}
+                  </Button>
+                </div>
+              )}
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold text-[#111b21]">{senderNumbers.length} connected WhatsApp numbers</div>
-              <div className="text-[10px] text-[#667781]">Twilio WhatsApp multi-account gateway</div>
-            </div>
-            <ChevronRight className="size-4 text-[#8696a0]" />
-          </Link>
-        </div>
-      </section>
+          )}
+
+          {/* WhatsApp Chat List Items */}
+          <div className="flex-1 overflow-y-auto">
+            {visibleChats.map((chat) => {
+              const isSelected = activeId === chat.id;
+              return (
+                <button
+                  key={chat.id}
+                  onClick={() => openChat(chat)}
+                  className={cn(
+                    "flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors cursor-pointer border-b border-border/50",
+                    isSelected ? "bg-muted/70" : "hover:bg-muted/40 bg-card"
+                  )}
+                  type="button"
+                >
+                  <Avatar className="size-12 shrink-0">
+                    <AvatarFallback className={`${chat.color} text-white font-medium text-sm`}>
+                      {chat.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <span className="truncate text-[15px] font-medium text-foreground">{chat.name}</span>
+                      <span className={cn("shrink-0 text-[11px]", chat.unread ? "text-primary font-semibold" : "text-muted-foreground")}>
+                        {chat.time}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-[13px] text-muted-foreground leading-tight flex-1">
+                        {chat.preview}
+                      </p>
+                      {chat.unread ? (
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+                          {chat.unread}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <span className="capitalize">{chat.state ?? "Open"}</span>
+                      {chat.messageCount ? (
+                        <span>· {channelNumbers.find((n) => n.id === chat.latestMessageSenderNumberId)?.label ?? "WhatsApp"}</span>
+                      ) : null}
+                      <QueueAgeBadge chat={chat} />
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+            {visibleChats.length === 0 && (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                No conversations found.
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Numbers Status Pill */}
+          <div className="border-t border-border p-3 bg-muted/40">
+            <Link href="/admin/numbers" className="flex items-center gap-2.5 rounded-lg bg-card p-2.5 shadow-2xs hover:bg-muted/40 transition-colors border border-border">
+              <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Wifi className="size-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-semibold text-foreground">{senderNumbers.length} connected WhatsApp number{senderNumbers.length === 1 ? "" : "s"}</div>
+                <div className="text-[10px] text-muted-foreground">Twilio WhatsApp multi-account gateway</div>
+              </div>
+              <ChevronRight className="size-4 text-muted-foreground" />
+            </Link>
+          </div>
+        </section>
 
       {/* 3. Right Chat Viewport */}
       {activeChat ? (
-        <section className="flex min-w-0 flex-1 flex-col h-full bg-[#efeae2] relative">
+        <section className="flex min-w-0 flex-1 flex-col h-full bg-muted/20 relative">
           {/* WhatsApp Chat Header */}
-          <header className="flex h-[60px] items-center justify-between border-b border-[#d1d7db] bg-[#f0f2f5] px-4 shrink-0 select-none">
+          <header className="flex h-[60px] items-center justify-between border-b border-border bg-muted/40 px-4 shrink-0 select-none">
             <div className="flex min-w-0 items-center gap-3">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => setActiveId("")}
-                className="sm:hidden p-1 text-[#54656f] hover:text-[#111b21]"
+                className="sm:hidden size-8 text-muted-foreground hover:text-foreground"
                 aria-label="Back to chat list"
               >
-                <ChevronLeft className="size-6" />
-              </button>
+                <ChevronLeft className="size-5" />
+              </Button>
               <Avatar className="size-10 shrink-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
                 <AvatarFallback className={`${activeChat.color} text-white font-medium text-xs`}>
                   {activeChat.initials}
@@ -1109,12 +1151,12 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               </Avatar>
               <div className="min-w-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
                 <div className="flex items-center gap-2">
-                  <h2 className="truncate text-[15px] font-semibold text-[#111b21] leading-tight">{activeChat.name}</h2>
-                  <Badge variant="outline" className="hidden sm:inline-flex text-[10px] py-0 px-1.5 border-[#d1d7db] text-[#54656f]">
+                  <h2 className="truncate text-[15px] font-semibold text-foreground leading-tight">{activeChat.name}</h2>
+                  <Badge variant="outline" className="hidden sm:inline-flex text-[10px] py-0 px-1.5 text-muted-foreground">
                     {activeThreadState}
                   </Badge>
                 </div>
-                <p className="truncate text-[12px] text-[#667781] leading-tight">
+                <p className="truncate text-[12px] text-muted-foreground leading-tight">
                   {activeChat.phone}
                 </p>
               </div>
@@ -1122,114 +1164,98 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
             {/* Header Right Actions */}
             <div className="flex items-center gap-1.5">
-              {/* Sender Number Selector */}
-              <div className="relative">
-                <Button
-                  disabled={!senderNumbersForChat.length}
-                  onClick={() => setNumberMenu((open) => !open)}
-                  className="flex h-8 items-center gap-1.5 rounded-full border border-[#d1d7db] bg-white px-2.5 text-xs text-[#111b21] hover:bg-[#f5f6f6] shadow-2xs"
-                  type="button"
-                  variant="ghost"
-                >
-                  <span className={`size-2 rounded-full ${activeNumber ? "bg-[#25d366]" : "bg-slate-300"}`} />
-                  <span className="hidden sm:inline font-medium">
-                    {activeNumber?.label ?? "No number"}
-                  </span>
-                  <span className="text-[11px] text-[#667781]">
-                    {activeNumber?.number}
-                  </span>
-                  {senderNumbers.length > 0 && <ChevronDown className="size-3 text-[#667781]" />}
-                </Button>
-                {numberMenu && (
-                  <div className="absolute right-0 top-10 z-50 w-72 rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
-                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#667781]">Switch active Twilio sender</p>
-                    {senderNumbersForChat.length ? (
-                      senderNumbersForChat.map((number) => (
-                        <button
-                          key={number.id}
-                          onClick={() => {
-                            setActiveNumberId(number.id);
-                            setViewThread({ contactId: activeChat.id, numberId: number.id });
-                            setNumberMenu(false);
-                          }}
-                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-[#f0f2f5] transition-colors"
-                          type="button"
-                        >
-                          <span className="size-2 rounded-full bg-[#25d366]" />
-                          <div className="min-w-0 flex-1">
-                            <span className="block text-xs font-semibold text-[#111b21]">{number.label}</span>
-                            <span className="block text-[11px] text-[#667781]">{number.number}</span>
-                          </div>
-                          {activeNumber?.id === number.id && <Check className="size-4 text-[#00a884]" />}
-                        </button>
-                      ))
-                    ) : (
-                      <p className="px-2.5 py-3 text-xs text-[#667781]">No active numbers available for this team.</p>
-                    )}
-                    {user.role !== "Agent" && senderNumbersForChat.length > 1 && (
-                      <div className="mt-1 border-t border-[#f0f2f5] pt-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => { setNumberMenu(false); beginReroute(); }}
-                          className="w-full justify-start text-xs text-[#54656f] hover:bg-[#f0f2f5]"
-                        >
-                          <ArrowRightLeft className="size-3.5 mr-2 text-[#00a884]" /> Reroute conversation thread
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              {/* Sender Number Selector with Shadcn DropdownMenu */}
+              <DropdownMenu open={numberMenu} onOpenChange={setNumberMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    disabled={!senderNumbersForChat.length}
+                    className="flex h-8 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-xs text-foreground hover:bg-muted shadow-2xs"
+                    type="button"
+                    variant="outline"
+                  >
+                    <span className={cn("size-2 rounded-full", activeNumber ? "bg-emerald-500" : "bg-muted-foreground")} />
+                    <span className="hidden sm:inline font-medium">
+                      {activeNumber?.label ?? "No number"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {activeNumber?.number}
+                    </span>
+                    {senderNumbers.length > 0 && <ChevronDown className="size-3 text-muted-foreground" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Switch active Twilio sender
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {senderNumbersForChat.length ? (
+                    senderNumbersForChat.map((number) => (
+                      <DropdownMenuItem
+                        key={number.id}
+                        onClick={() => {
+                          setActiveNumberId(number.id);
+                          setViewThread({ contactId: activeChat.id, numberId: number.id });
+                        }}
+                        className="flex items-center gap-2.5 cursor-pointer py-2"
+                      >
+                        <span className="size-2 rounded-full bg-emerald-500" />
+                        <div className="min-w-0 flex-1">
+                          <span className="block text-xs font-semibold text-foreground">{number.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">{number.number}</span>
+                        </div>
+                        {activeNumber?.id === number.id && <Check className="size-4 text-primary" />}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <div className="p-3 text-xs text-muted-foreground">No active numbers available for this team.</div>
+                  )}
+                  {user.role !== "Agent" && senderNumbersForChat.length > 1 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => beginReroute()} className="text-xs text-primary cursor-pointer">
+                        <ArrowRightLeft className="size-3.5 mr-2" /> Reroute conversation thread
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <IconButton label="Contact info" onClick={() => setShowProfile((open) => !open)}>
-                <Info className="size-5 text-[#54656f]" />
+                <Info className="size-5 text-muted-foreground" />
               </IconButton>
             </div>
           </header>
 
-          {/* Notice Alert Banner */}
-          {notice && (
-            <div role="status" className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 z-10 shrink-0">
-              <Info className="size-4 shrink-0 text-amber-700" />
-              <span className="flex-1">{notice}</span>
-              <button onClick={() => setNotice("")} className="text-amber-700 hover:text-amber-900" type="button">
-                <X className="size-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Messages Viewport with WhatsApp Wallpaper */}
+          {/* Messages Viewport with WhatsApp Layout */}
           <MessageScrollerProvider autoScroll defaultScrollPosition="end">
             <MessageScroller className="flex-1 overflow-hidden relative">
               <MessageScrollerViewport
                 aria-label={`Conversation with ${activeChat.name}`}
-                className="whatsapp-wallpaper wa-scrollbar h-full px-4 py-3 md:px-12"
+                className="h-full px-4 py-3 md:px-12 bg-muted/20"
               >
                 <MessageScrollerContent className="mx-auto flex w-full max-w-3xl flex-col pb-4">
                   {/* Subtle WhatsApp Encryption Banner */}
                   <div className="my-2 flex justify-center">
-                    <span className="flex items-center gap-1.5 rounded-lg bg-[#ffeecd] px-3 py-1.5 text-center text-[11.5px] text-[#54656f] shadow-2xs">
-                      <Lock className="size-3 text-[#54656f] shrink-0" />
+                    <span className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-center text-[11.5px] text-muted-foreground shadow-2xs">
+                      <Lock className="size-3 text-muted-foreground shrink-0" />
                       Messages and media are end-to-end encrypted in your CRM timeline.
                     </span>
                   </div>
 
                   {!activeChat.detailLoaded && (
                     <div className="my-2 flex justify-center">
-                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs text-[#54656f] shadow-2xs">
+                      <span className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground shadow-2xs">
                         {loadingChatId === activeId ? "Loading conversation history…" : "Loading messages…"}
                       </span>
                     </div>
                   )}
 
                   {senderChanged && previousSender && activeNumber && (
-                    <div className="my-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-amber-950 text-xs shadow-2xs">
-                      <div className="flex items-center gap-1.5 font-semibold text-amber-900">
+                    <div className="my-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-amber-950 dark:text-amber-200 text-xs shadow-2xs">
+                      <div className="flex items-center gap-1.5 font-semibold text-amber-900 dark:text-amber-300">
                         <Info className="size-4" /> This chat switched WhatsApp sender number
                       </div>
-                      <p className="mt-1 text-[11px] leading-relaxed text-amber-800">
+                      <p className="mt-1 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/80">
                         Previous messages were sent from {previousSender.label} ({previousSender.number}). New replies will use {activeNumber.label} ({activeNumber.number}).
                       </p>
                     </div>
@@ -1237,7 +1263,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
                   {/* Today date pill */}
                   <div className="my-2 flex justify-center">
-                    <span className="rounded-md bg-white/95 px-3 py-0.5 text-[11px] font-medium text-[#54656f] shadow-2xs">
+                    <span className="rounded-md border border-border bg-card px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-2xs">
                       Today
                     </span>
                   </div>
@@ -1260,7 +1286,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
                   {viewedThreadMessages.length === 0 && (
                     <div className="my-8 flex justify-center">
-                      <span className="rounded-lg bg-white/90 px-4 py-2 text-xs text-[#54656f] shadow-2xs text-center max-w-sm">
+                      <span className="rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground shadow-2xs text-center max-w-sm">
                         No messages in this WhatsApp number thread yet. Start the conversation with an approved template below.
                       </span>
                     </div>
@@ -1268,10 +1294,10 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
                   {/* Internal Team Notes */}
                   {activeChat.internalNotes?.map((note) => (
-                    <div key={note.id} className="mx-auto my-2 w-full max-w-lg rounded-lg border border-[#fbc02d]/40 bg-[#fff9c4] p-3 text-[#4a4a4a] shadow-2xs text-xs">
-                      <div className="flex items-center justify-between mb-1 font-semibold text-[11px] text-amber-900">
+                    <div key={note.id} className="mx-auto my-2 w-full max-w-lg rounded-lg border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/30 p-3 text-foreground shadow-2xs text-xs">
+                      <div className="flex items-center justify-between mb-1 font-semibold text-[11px] text-amber-900 dark:text-amber-300">
                         <span>🔒 Internal note · Team only</span>
-                        <span className="font-normal text-[10px] text-amber-800">{note.author} · {note.time}</span>
+                        <span className="font-normal text-[10px] text-amber-800 dark:text-amber-400">{note.author} · {note.time}</span>
                       </div>
                       <p className="whitespace-pre-wrap leading-relaxed">{note.text}</p>
                     </div>
@@ -1283,48 +1309,42 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
           </MessageScrollerProvider>
 
           {/* WhatsApp Composer */}
-          <div className="border-t border-[#d1d7db] bg-[#f0f2f5] px-4 py-2.5 shrink-0 flex flex-col gap-2">
+          <div className="border-t border-border bg-card px-4 py-2.5 shrink-0 flex flex-col gap-2">
             {/* Top mode bar & 24hr window status */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5">
-                <button
+                <Button
                   type="button"
+                  size="sm"
+                  variant={composerMode === "reply" ? "default" : "secondary"}
                   onClick={() => setComposerMode("reply")}
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    composerMode === "reply"
-                      ? "bg-[#00a884] text-white"
-                      : "bg-white text-[#54656f] hover:bg-[#e9edef]"
-                  }`}
+                  className="rounded-full h-7 px-3 text-xs"
                 >
                   Reply
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
+                  variant={composerMode === "template" ? "default" : "secondary"}
                   onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("template"); }}
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    composerMode === "template"
-                      ? "bg-[#00a884] text-white"
-                      : "bg-white text-[#54656f] hover:bg-[#e9edef]"
-                  }`}
+                  className="rounded-full h-7 px-3 text-xs"
                 >
                   Template
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  size="sm"
+                  variant={composerMode === "note" ? "default" : "secondary"}
                   onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("note"); }}
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    composerMode === "note"
-                      ? "bg-amber-600 text-white"
-                      : "bg-white text-[#54656f] hover:bg-[#e9edef]"
-                  }`}
+                  className={cn("rounded-full h-7 px-3 text-xs", composerMode === "note" && "bg-amber-600 hover:bg-amber-700 text-white")}
                 >
                   Internal note
-                </button>
+                </Button>
               </div>
 
               {composerMode === "reply" && replyAllowed && activeNumber && (
-                <div className="flex items-center gap-1 text-[11px] text-[#667781]">
-                  <Clock3 className="size-3 text-[#00a884]" />
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Clock3 className="size-3 text-primary" />
                   <span>
                     {serviceWindowOpen
                       ? `24hr window open${serviceWindowExpiresAt ? ` until ${new Date(serviceWindowExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
@@ -1336,7 +1356,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
             {/* Warnings when reply not permitted */}
             {!replyAllowed && composerMode !== "note" && (
-              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-900">
+              <div className="rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
                 {consentStatus === "opted_out"
                   ? "Customer opted out of WhatsApp messages."
                   : "WhatsApp opt-in is not recorded yet. Record opt-in in Contact Info to enable sending."}
@@ -1354,32 +1374,34 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               />
             )}
             {composerMode === "reply" && attachment && (
-              <div className="flex items-center gap-3 rounded-lg border border-[#d1d7db] bg-white p-2">
+              <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-2">
                 {attachmentPreview ? (
                   <Image src={attachmentPreview} alt="Attachment preview" width={48} height={48} unoptimized className="size-12 rounded object-cover" />
                 ) : (
-                  <div className="flex size-12 items-center justify-center rounded bg-[#f0f2f5] text-[#00a884]">
+                  <div className="flex size-12 items-center justify-center rounded bg-muted text-primary">
                     <Paperclip className="size-5" />
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-[#111b21]">{attachment.name}</p>
-                  <p className="text-[10px] text-[#667781]">{(attachment.size / (1024 * 1024)).toFixed(1)} MB</p>
+                  <p className="truncate text-xs font-medium text-foreground">{attachment.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{(attachment.size / (1024 * 1024)).toFixed(1)} MB</p>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => { selectAttachment(null); if (attachmentInput.current) attachmentInput.current.value = ""; }}
-                  className="rounded p-1 text-[#8696a0] hover:text-[#111b21]"
+                  className="size-7 text-muted-foreground hover:text-foreground"
                 >
                   <X className="size-4" />
-                </button>
+                </Button>
               </div>
             )}
 
             {/* Template Mode Form */}
             {composerMode === "template" ? (
-              <div className="rounded-lg bg-white p-3 border border-[#d1d7db] flex flex-col gap-2">
-                <label className="text-xs font-semibold text-[#111b21]">
+              <div className="rounded-lg bg-card p-3 border border-border flex flex-col gap-2">
+                <label className="text-xs font-semibold text-foreground">
                   Approved WhatsApp Template
                   <SelectControl
                     value={selectedTemplateId}
@@ -1389,7 +1411,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                       const item = approvedTemplates.find((template) => template.id === id);
                       setTemplateParameters(Array.from({ length: templateVariables(templateBody(item)).length }, () => ""));
                     }}
-                    className="mt-1 h-9 rounded-lg border border-[#d1d7db] bg-white px-3 text-xs w-full"
+                    className="mt-1 h-9 rounded-lg border border-border bg-card px-3 text-xs w-full text-foreground"
                   >
                     <option value="">Select a template</option>
                     {approvedTemplates.map((template) => (
@@ -1402,14 +1424,14 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                     {templateParameters.map((value, index) => {
                       const variable = selectedTemplateVariables[index];
                       return (
-                        <label key={`${selectedTemplate.id}-${variable}`} className="text-xs font-medium text-[#54656f]">
+                        <label key={`${selectedTemplate.id}-${variable}`} className="text-xs font-medium text-muted-foreground">
                           Value for {`{{${variable}}}`}
                           <Input
                             value={value}
                             maxLength={1024}
                             onChange={(event) => setTemplateParameters((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
                             placeholder={`Value for ${variable}`}
-                            className="mt-1 h-8 text-xs bg-[#f0f2f5]"
+                            className="mt-1 h-8 text-xs bg-muted/40"
                           />
                         </label>
                       );
@@ -1417,8 +1439,8 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                   </div>
                 )}
                 {selectedTemplate && (
-                  <div className="rounded-lg bg-[#efeae2]/60 p-2.5 text-xs text-[#111b21]">
-                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-[#667781] mb-1">
+                  <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-foreground border border-border">
+                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
                       Preview · {selectedTemplate.category}
                     </span>
                     {selectedTemplatePreview || "No text preview"}
@@ -1428,7 +1450,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                   <Button
                     onClick={() => void sendTemplateMessage()}
                     disabled={sending || !selectedTemplate || !replyAllowed || !activeNumber || !activeSenderEligible || templateParameters.length !== selectedTemplateParameterCount || templateParameters.some((value) => !value.trim())}
-                    className="bg-[#00a884] hover:bg-[#008f6f] text-white rounded-full px-5 text-xs font-semibold"
+                    className="rounded-full px-5 text-xs font-semibold"
                   >
                     {sending ? "Sending…" : "Send template"}
                   </Button>
@@ -1438,7 +1460,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               /* Reply / Note Main Bar */
               <div className="flex items-end gap-2">
                 {/* Left WhatsApp Icons */}
-                <div className="flex items-center gap-0.5 pb-1 text-[#54656f]">
+                <div className="flex items-center gap-0.5 pb-1 text-muted-foreground">
                   <IconButton label="Emoji" onClick={() => setEmojiOpen((open) => !open)}>
                     <Smile className="size-5" />
                   </IconButton>
@@ -1485,18 +1507,18 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                         : "Replies disabled until opt-in is recorded"
                     }
                     rows={1}
-                    className="w-full resize-none rounded-lg bg-white px-3.5 py-2.5 text-[14.5px] leading-relaxed text-[#111b21] placeholder:text-[#8696a0] shadow-2xs border-none focus:outline-none min-h-[42px] max-h-32"
+                    className="w-full resize-none rounded-lg bg-muted/40 px-3.5 py-2.5 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground border border-border min-h-[42px] max-h-32"
                   />
 
                   {/* Emoji Picker Popup */}
                   {emojiOpen && (
-                    <div className="absolute bottom-12 left-0 z-50 flex flex-wrap gap-1 rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
+                    <div className="absolute bottom-12 left-0 z-50 flex flex-wrap gap-1 rounded-xl border border-border bg-card p-2 shadow-xl">
                       {["😀", "😊", "👍", "❤️", "🎉", "🙏", "✅", "👋", "🙂", "🤔", "✨", "💬"].map((emoji) => (
                         <button
                           key={emoji}
                           type="button"
                           onClick={() => { setDraft((c) => `${c}${emoji}`); setEmojiOpen(false); draftInputRef.current?.focus(); }}
-                          className="size-9 rounded-lg text-lg hover:bg-[#f0f2f5] flex items-center justify-center"
+                          className="size-9 rounded-lg text-lg hover:bg-muted flex items-center justify-center"
                         >
                           {emoji}
                         </button>
@@ -1506,30 +1528,31 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
                   {/* Saved Replies Popup */}
                   {savedReplyOpen && (
-                    <div className="absolute bottom-12 left-0 z-50 w-72 max-h-60 overflow-y-auto wa-scrollbar rounded-xl border border-[#d1d7db] bg-white p-2 shadow-xl">
-                      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#667781]">Quick Saved Replies</div>
+                    <div className="absolute bottom-12 left-0 z-50 w-72 max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-xl">
+                      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Quick Saved Replies</div>
                       {cannedReplies.length ? (
                         cannedReplies.map((reply) => (
                           <button
                             key={reply.id}
                             type="button"
                             onClick={() => insertSavedReply(reply)}
-                            className="w-full text-left rounded-lg px-2.5 py-2 hover:bg-[#f0f2f5] transition-colors"
+                            className="w-full text-left rounded-lg px-2.5 py-2 hover:bg-muted transition-colors cursor-pointer"
                           >
-                            <span className="block text-xs font-semibold text-[#111b21]">{reply.title}</span>
-                            <span className="block truncate text-[11px] text-[#667781]">{personalizedReply(reply)}</span>
+                            <span className="block text-xs font-semibold text-foreground">{reply.title}</span>
+                            <span className="block truncate text-[11px] text-muted-foreground">{personalizedReply(reply)}</span>
                           </button>
                         ))
                       ) : (
-                        <p className="px-2 py-3 text-xs text-[#667781]">No saved replies yet.</p>
+                        <p className="px-2 py-3 text-xs text-muted-foreground">No saved replies yet.</p>
                       )}
                     </div>
                   )}
                 </div>
 
                 {/* Circular WhatsApp Send Button */}
-                <button
+                <Button
                   type="button"
+                  size="icon"
                   disabled={
                     sending || !activeChat.detailLoaded ||
                     (composerMode === "note"
@@ -1537,46 +1560,47 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                       : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || !serviceWindowOpen)
                   }
                   onClick={() => (composerMode === "note" ? void saveInternalNote() : void sendMessage())}
-                  className={`size-10 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-colors ${
+                  className={cn(
+                    "size-10 rounded-full shrink-0 shadow-xs",
                     composerMode === "note"
                       ? "bg-amber-600 hover:bg-amber-700 text-white"
-                      : "bg-[#00a884] hover:bg-[#008f6f] disabled:bg-[#d1d7db] text-white"
-                  }`}
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
+                  )}
                   aria-label="Send"
                 >
                   <Send className="size-4" />
-                </button>
+                </Button>
               </div>
             )}
           </div>
         </section>
       ) : (
         /* WhatsApp Web Empty Intro Screen (when no chat is active) */
-        <section className="hidden md:flex flex-1 flex-col items-center justify-center bg-[#f0f2f5] p-8 text-center border-b-[6px] border-[#00a884] select-none h-full">
+        <section className="hidden md:flex flex-1 flex-col items-center justify-center bg-muted/30 p-8 text-center border-b-[6px] border-primary select-none h-full">
           <div className="max-w-md flex flex-col items-center">
-            <div className="size-24 rounded-full bg-[#25d366]/15 flex items-center justify-center mb-6">
-              <MessageSquare className="size-12 text-[#25d366]" />
+            <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 text-primary">
+              <MessageSquare className="size-12" />
             </div>
-            <h2 className="text-[28px] font-light text-[#41525d] tracking-tight">WhatsApp CRM Web</h2>
-            <p className="text-[14px] text-[#667781] mt-3 leading-relaxed">
+            <h2 className="text-[28px] font-light text-foreground tracking-tight">WhatsApp CRM Web</h2>
+            <p className="text-[14px] text-muted-foreground mt-3 leading-relaxed">
               Send and receive WhatsApp messages with your customers across connected Twilio numbers with unified timeline storage.
             </p>
             <div className="mt-6 flex items-center gap-3">
-              <Link href="/customers?new=1">
-                <Button className="bg-[#00a884] hover:bg-[#008f6f] text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xs">
+              <Button asChild className="text-xs font-semibold px-4 py-2 rounded-full shadow-xs">
+                <Link href="/customers?new=1">
                   <Plus className="size-4 mr-1.5" /> Add customer
-                </Button>
-              </Link>
-              {adminCanPurgeMedia && (
-                <Link href="/admin/numbers">
-                  <Button variant="outline" className="border-[#d1d7db] text-[#111b21] bg-white hover:bg-[#f5f6f6] text-xs font-semibold px-4 py-2 rounded-full">
-                    <Smartphone className="size-4 mr-1.5" /> Manage numbers
-                  </Button>
                 </Link>
+              </Button>
+              {adminCanPurgeMedia && (
+                <Button asChild variant="outline" className="border-border text-foreground bg-card hover:bg-muted text-xs font-semibold px-4 py-2 rounded-full">
+                  <Link href="/admin/numbers">
+                    <Smartphone className="size-4 mr-1.5" /> Manage numbers
+                  </Link>
+                </Button>
               )}
             </div>
-            <div className="mt-16 flex items-center gap-1.5 text-xs text-[#8696a0]">
-              <Lock className="size-3.5 text-[#8696a0]" />
+            <div className="mt-16 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Lock className="size-3.5 text-muted-foreground" />
               <span>End-to-end encrypted CRM messaging</span>
             </div>
           </div>
@@ -1585,72 +1609,73 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
 
       {/* 4. Customer Details Right Drawer (WhatsApp Contact Info style) */}
       {showProfile && activeChat && (
-        <aside className="hidden w-[340px] xl:w-[360px] shrink-0 flex-col border-l border-[#d1d7db] bg-[#f0f2f5] xl:flex h-full overflow-y-auto wa-scrollbar">
+        <aside className="hidden w-[340px] xl:w-[360px] shrink-0 flex-col border-l border-border bg-card xl:flex h-full overflow-y-auto">
           {/* Header */}
-          <div className="flex h-[60px] items-center justify-between border-b border-[#d1d7db] bg-[#f0f2f5] px-4 shrink-0">
-            <span className="text-[15px] font-semibold text-[#111b21]">Contact info</span>
-            <button
+          <div className="flex h-[60px] items-center justify-between border-b border-border bg-muted/40 px-4 shrink-0">
+            <span className="text-[15px] font-semibold text-foreground">Contact info</span>
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setShowProfile(false)}
               aria-label="Close"
-              className="rounded-full p-1 text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21]"
-              type="button"
+              className="rounded-full size-8 text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <X className="size-5" />
-            </button>
+            </Button>
           </div>
 
           {/* Profile Card */}
-          <div className="bg-white border-b border-[#d1d7db] p-6 flex flex-col items-center text-center">
+          <div className="bg-card border-b border-border p-6 flex flex-col items-center text-center">
             <Avatar className="size-20">
               <AvatarFallback className={`${activeChat.color} text-white font-medium text-2xl`}>
                 {activeChat.initials}
               </AvatarFallback>
             </Avatar>
-            <h3 className="mt-3 text-base font-semibold text-[#111b21]">{activeChat.name}</h3>
-            <p className="text-xs text-[#667781] mt-0.5">{activeChat.phone}</p>
+            <h3 className="mt-3 text-base font-semibold text-foreground">{activeChat.name}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{activeChat.phone}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 disabled={!activeThreadExists}
-                className="h-8 text-xs border-[#d1d7db]"
+                className="h-8 text-xs border-border"
                 onClick={() => void updateConversation(activeChat.id, activeThreadState === "Waiting" ? "reopen" : "wait", undefined, undefined, undefined, viewedThreadNumberId)}
               >
-                <Clock3 className="size-3.5 mr-1 text-[#54656f]" />
+                <Clock3 className="size-3.5 mr-1 text-muted-foreground" />
                 {activeThreadState === "Waiting" ? "Reopen" : "Waiting"}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={!activeThreadExists}
-                className="h-8 text-xs border-[#d1d7db]"
+                className="h-8 text-xs border-border"
                 onClick={() => void updateConversation(activeChat.id, activeThreadState === "Resolved" ? "reopen" : "resolve", undefined, undefined, undefined, viewedThreadNumberId)}
               >
-                <Archive className="size-3.5 mr-1 text-[#54656f]" />
+                <Archive className="size-3.5 mr-1 text-muted-foreground" />
                 {activeThreadState === "Resolved" ? "Reopen" : "Resolve"}
               </Button>
             </div>
           </div>
 
           {/* WhatsApp Consent Card */}
-          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2">
+          <div className="bg-card border-y border-border p-4 mt-2">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold text-[#111b21]">WhatsApp Consent</h4>
+              <h4 className="text-xs font-semibold text-foreground">WhatsApp Consent</h4>
               <Badge
                 variant="outline"
                 className={
                   consentStatus === "opted_in"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
                     : consentStatus === "opted_out"
-                    ? "border-red-300 bg-red-50 text-red-800"
-                    : "border-amber-300 bg-amber-50 text-amber-900"
+                    ? "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+                    : "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
                 }
               >
                 {consentStatus === "opted_in" ? "Opted in" : consentStatus === "opted_out" ? "Opted out" : "Not recorded"}
               </Badge>
             </div>
             {activeChat.consentSource && (
-              <p className="mt-2 text-[11px] text-[#667781]">
+              <p className="mt-2 text-[11px] text-muted-foreground">
                 Latest: {activeChat.consentSource}
               </p>
             )}
@@ -1658,19 +1683,19 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               value={consentSourceDraft}
               onChange={(e) => setConsentSourceDraft(e.target.value)}
               placeholder="Consent source / link"
-              className="mt-2.5 h-8 text-xs bg-[#f0f2f5] border-none"
+              className="mt-2.5 h-8 text-xs bg-muted/40 border-border"
             />
             <Input
               value={consentWordingVersionDraft}
               onChange={(e) => setConsentWordingVersionDraft(e.target.value)}
               placeholder="Wording version (e.g. v1.0)"
-              className="mt-1.5 h-8 text-xs bg-[#f0f2f5] border-none"
+              className="mt-1.5 h-8 text-xs bg-muted/40 border-border"
             />
             <div className="mt-2 grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                className="h-8 text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
                 onClick={() => void updateConsent("opted_in")}
               >
                 Record opt-in
@@ -1678,7 +1703,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 border-red-300 text-red-700 hover:bg-red-50 text-xs"
+                className="h-8 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/50 text-xs"
                 onClick={() => void updateConsent("opted_out")}
               >
                 Record opt-out
@@ -1687,60 +1712,60 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
           </div>
 
           {/* Routing & Assignment Card */}
-          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2 flex flex-col gap-2.5">
-            <h4 className="text-xs font-semibold text-[#111b21]">Assignment & Routing</h4>
+          <div className="bg-card border-y border-border p-4 mt-2 flex flex-col gap-2.5">
+            <h4 className="text-xs font-semibold text-foreground">Assignment & Routing</h4>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[#667781]">Assigned agent</span>
+              <span className="text-muted-foreground">Assigned agent</span>
               <SelectControl
                 aria-label="Assign conversation"
                 disabled={!activeThreadExists}
                 value={activeThreadAssigneeId ?? ""}
                 onChange={(event) => void updateConversation(activeChat.id, "assign", event.target.value || null, undefined, undefined, viewedThreadNumberId)}
-                className="h-8 max-w-[150px] rounded border border-[#d1d7db] bg-white px-2 text-xs"
+                className="h-8 max-w-[150px] rounded border border-border bg-card px-2 text-xs text-foreground"
               >
                 <option value="">Unassigned</option>
                 {eligibleAssignees.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
               </SelectControl>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[#667781]">Team</span>
+              <span className="text-muted-foreground">Team</span>
               <SelectControl
                 aria-label="Assign team"
                 disabled={!activeThreadExists}
                 value={activeThreadTeamId ?? ""}
                 onChange={(event) => void updateConversation(activeChat.id, "assign_team", undefined, undefined, event.target.value || null, viewedThreadNumberId)}
-                className="h-8 max-w-[150px] rounded border border-[#d1d7db] bg-white px-2 text-xs"
+                className="h-8 max-w-[150px] rounded border border-border bg-card px-2 text-xs text-foreground"
               >
                 <option value="">No team</option>
                 {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
               </SelectControl>
             </div>
-            <div className="flex items-center justify-between text-xs pt-1 border-t border-[#f0f2f5]">
-              <span className="text-[#667781]">Active sender</span>
-              <span className="font-medium text-[#111b21]">
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
+              <span className="text-muted-foreground">Active sender</span>
+              <span className="font-medium text-foreground">
                 {channelNumbers.find((n) => n.id === viewedThreadNumberId)?.label ?? activeNumber?.label ?? "WhatsApp"}
               </span>
             </div>
           </div>
 
           {/* Tags Card */}
-          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2">
+          <div className="bg-card border-y border-border p-4 mt-2">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xs font-semibold text-[#111b21]">Tags</h4>
-              <button onClick={() => setTagMenu((o) => !o)} className="text-[#00a884] hover:text-[#008f6f]">
+              <h4 className="text-xs font-semibold text-foreground">Tags</h4>
+              <button onClick={() => setTagMenu((o) => !o)} className="text-primary hover:text-primary/80" aria-label="Add tag">
                 <Plus className="size-4" />
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {activeTags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="bg-[#f0f2f5] text-[#111b21] hover:bg-[#e9edef] gap-1 text-[11px]">
+                <Badge key={tag} variant="secondary" className="gap-1 text-[11px]">
                   {tag}
-                  <button type="button" onClick={() => void updateTag(tag, "remove_tag")} className="text-[#667781] hover:text-red-600">
+                  <button type="button" onClick={() => void updateTag(tag, "remove_tag")} className="text-muted-foreground hover:text-destructive" aria-label={`Remove ${tag}`}>
                     ×
                   </button>
                 </Badge>
               ))}
-              {activeTags.length === 0 && <span className="text-xs text-[#8696a0]">No tags</span>}
+              {activeTags.length === 0 && <span className="text-xs text-muted-foreground">No tags</span>}
             </div>
             {tagMenu && (
               <form
@@ -1758,9 +1783,9 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
                   placeholder="New tag..."
-                  className="h-7 text-xs bg-[#f0f2f5] border-none"
+                  className="h-7 text-xs bg-muted/40 border-border"
                 />
-                <Button type="submit" size="sm" className="h-7 px-2.5 bg-[#00a884] text-white hover:bg-[#008f6f] text-xs">
+                <Button type="submit" size="sm" className="h-7 px-2.5 text-xs">
                   Add
                 </Button>
               </form>
@@ -1768,27 +1793,27 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
           </div>
 
           {/* Customer Activity Timeline */}
-          <div className="bg-white border-y border-[#d1d7db] p-4 mt-2 mb-6">
+          <div className="bg-card border-y border-border p-4 mt-2 mb-6">
             <div className="flex items-center justify-between mb-2">
               <button
                 type="button"
                 onClick={() => setTimelineExpanded((e) => !e)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-[#111b21]"
+                className="flex items-center gap-1.5 text-xs font-semibold text-foreground"
               >
                 Customer Timeline
-                <ChevronDown className={`size-3.5 transition-transform ${timelineExpanded ? "rotate-180" : ""}`} />
+                <ChevronDown className={cn("size-3.5 transition-transform", timelineExpanded ? "rotate-180" : "")} />
               </button>
-              <span className="text-[10px] text-[#8696a0]">Across numbers</span>
+              <span className="text-[10px] text-muted-foreground">Across numbers</span>
             </div>
             {timelineExpanded && (
-              <div className="max-h-72 overflow-y-auto wa-scrollbar space-y-2.5 pr-1 mt-2">
+              <div className="max-h-72 overflow-y-auto space-y-2.5 pr-1 mt-2">
                 {customerTimeline.map((item) => (
-                  <div key={item.key} className="border-b border-[#f0f2f5] pb-2 text-xs">
-                    <div className="flex items-center justify-between text-[11px] font-medium text-[#111b21]">
+                  <div key={item.key} className="border-b border-border pb-2 text-xs">
+                    <div className="flex items-center justify-between text-[11px] font-medium text-foreground">
                       <span>{item.title}</span>
-                      <span className="text-[10px] text-[#8696a0]">{item.displayTime}</span>
+                      <span className="text-[10px] text-muted-foreground">{item.displayTime}</span>
                     </div>
-                    <p className="mt-0.5 text-[#667781] text-[11px] leading-relaxed truncate">{item.detail}</p>
+                    <p className="mt-0.5 text-muted-foreground text-[11px] leading-relaxed truncate">{item.detail}</p>
                   </div>
                 ))}
               </div>
@@ -1796,6 +1821,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
           </div>
         </aside>
       )}
+      </div>
 
       {/* Reroute Dialog */}
       <Dialog open={rerouteOpen} onOpenChange={(open) => { if (!rerouting) setRerouteOpen(open); }}>
@@ -1814,7 +1840,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               </div>
               <label className="flex flex-col gap-1.5 text-xs font-medium">
                 Customer-facing sender
-                <SelectControl value={rerouteTargetId} onChange={(event) => setRerouteTargetId(event.target.value)} className="h-10 rounded-md border bg-white px-3 text-sm">
+                <SelectControl value={rerouteTargetId} onChange={(event) => setRerouteTargetId(event.target.value)} className="h-10 rounded-md border border-border bg-card px-3 text-sm text-foreground">
                   <option value="">Choose a number</option>
                   {senderNumbersForChat.filter((number) => number.id !== currentRouteNumberId).map((number) => (
                     <option key={number.id} value={number.id}>{number.label} · {number.number}</option>
@@ -1825,7 +1851,7 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
           )}
           <DialogFooter>
             <Button variant="outline" disabled={rerouting} onClick={() => setRerouteOpen(false)}>Cancel</Button>
-            <Button disabled={rerouting || !rerouteTargetId} onClick={() => void rerouteConversation()} className="bg-[#00a884] text-white hover:bg-[#008f6f]">
+            <Button disabled={rerouting || !rerouteTargetId} onClick={() => void rerouteConversation()}>
               {rerouting ? "Rerouting…" : "Confirm reroute"}
             </Button>
           </DialogFooter>
@@ -1841,15 +1867,15 @@ export function InboxApp({ user, cannedReplies = [] }: { user: { id: string; nam
               Quick guide to multi-number Twilio WhatsApp messaging.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 text-xs text-[#54656f]">
+          <div className="space-y-3 text-xs text-muted-foreground">
             <section>
-              <h3 className="font-semibold text-[#111b21]">Customer Service Window</h3>
+              <h3 className="font-semibold text-foreground">Customer Service Window</h3>
               <p className="mt-1 leading-relaxed">
                 Free-form replies are allowed within 24 hours of the customer’s latest message. When the window expires, you must send an approved template to re-open the conversation.
               </p>
             </section>
             <section>
-              <h3 className="font-semibold text-[#111b21]">Multi-Number Routing</h3>
+              <h3 className="font-semibold text-foreground">Multi-Number Routing</h3>
               <p className="mt-1 leading-relaxed">
                 You can switch between any of your configured Twilio WhatsApp numbers using the selector in the top bar. History remains organized per thread in the customer timeline.
               </p>
@@ -1870,9 +1896,10 @@ function RailLink({ children, label, active = false, href }: { children: React.R
       href={href}
       aria-label={label}
       title={label}
-      className={`relative flex size-10 items-center justify-center rounded-xl transition-colors ${
-        active ? "bg-[#d9fdd3] text-[#008069]" : "text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21]"
-      }`}
+      className={cn(
+        "relative flex size-10 items-center justify-center rounded-xl transition-colors",
+        active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
     >
       {children}
       <span className="sr-only">{label}</span>
@@ -1886,11 +1913,13 @@ function RailButton({ children, label, active = false, onClick }: { children: Re
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`relative flex size-10 items-center justify-center rounded-xl transition-colors ${
-        active ? "bg-[#d9fdd3] text-[#008069]" : "text-[#54656f] hover:bg-[#e9edef] hover:text-[#111b21]"
-      }`}
+      className={cn(
+        "relative flex size-10 items-center justify-center rounded-xl transition-colors",
+        active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+      )}
       type="button"
       variant="ghost"
+      size="icon"
     >
       {children}
       <span className="sr-only">{label}</span>
