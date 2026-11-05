@@ -11,6 +11,7 @@ import { Plus, ShieldCheck, UserPlus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -114,12 +115,157 @@ export function TeamAdmin({ initialTeam, currentUserId }: { initialTeam: TeamMem
         </div>
         <Badge variant="secondary">{team.length} members</Badge>
       </div>
-      {notice && <div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</div>}{error && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
-      <section className="mb-5 rounded-2xl border bg-white shadow-sm"><div className="px-5 py-4"><h2 className="text-sm font-semibold">Teams</h2><p className="mt-1 text-xs text-muted-foreground">Create workspace teams for conversation assignment and number/routing policies.</p></div><Separator /><div className="divide-y">{groups.map((group) => <div key={group.id} className="flex flex-wrap items-center gap-3 px-5 py-3"><div className="min-w-[160px] flex-1"><p className="text-sm font-medium">{group.name}</p><p className="mt-1 text-[10px] text-muted-foreground">{group.members.length ? group.members.map((member) => member.name).join(", ") : "No active members"}</p></div><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setEditingGroupId(group.id); setGroupName(group.name); setGroupMembers(group.members.map((member) => member.id)); }}>Edit</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void deleteGroup(group)}>Delete</Button></div>)}{!groups.length && <p className="px-5 py-4 text-xs text-muted-foreground">No teams created yet.</p>}</div><Separator /><form onSubmit={saveGroup} className="grid gap-3 p-5"><div className="flex flex-wrap items-end gap-3"><label className="min-w-[220px] flex-1 space-y-1.5 text-xs font-medium">{editingGroupId ? "Edit team name" : "New team name"}<Input required maxLength={80} value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Customer support" /></label><Button type="submit" disabled={busy}>{editingGroupId ? "Save team" : "Create team"}</Button>{editingGroupId && <Button type="button" variant="outline" disabled={busy} onClick={() => { setEditingGroupId(""); setGroupName(""); setGroupMembers([]); }}>Cancel</Button>}</div><fieldset className="space-y-2"><legend className="text-xs font-medium">Active members</legend><div className="flex flex-wrap gap-2">{team.filter((member) => member.active !== false).map((member) => <label key={member.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"><CheckboxControl aria-label={`Include ${member.name} in this team`} checked={groupMembers.includes(member.id)} onChange={(event) => setGroupMembers((current) => event.target.checked ? [...current, member.id] : current.filter((id) => id !== member.id))} />{member.name}</label>)}</div></fieldset></form></section>
-      <section className="rounded-2xl border bg-white shadow-sm"><div className="px-5 py-4"><h2 className="text-sm font-semibold">Workspace access</h2><p className="mt-1 text-xs text-muted-foreground">Admins can update roles, recover MFA after a separate identity check, and deactivate accounts. Changes are audited and active sessions are revoked.</p></div><Separator /><div className="divide-y">{team.map((member) => <div key={member.id} className="flex flex-wrap items-center gap-3 px-5 py-4"><Avatar className="size-10"><AvatarFallback className="bg-primary/10 text-xs text-primary">{member.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</AvatarFallback></Avatar><div className="min-w-[180px] flex-1"><div className="text-sm font-medium">{member.name}{member.id === currentUserId && <span className="ml-2 text-[10px] text-muted-foreground">You</span>}</div><div className="text-xs text-muted-foreground">{member.email}</div></div><Badge variant={member.active === false ? "warning" : member.role === "Owner" ? "default" : "outline"}>{member.active === false ? "Inactive" : member.role}</Badge>{member.role !== "Owner" && <><SelectControl aria-label={`Role for ${member.name}`} value={member.role} disabled={busy || member.active === false} onChange={(event) => void updateMember(member, "change_role", event.target.value)} className="h-9 rounded-md border bg-white px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"><option>Agent</option><option>Supervisor</option><option>Admin</option></SelectControl>{member.active === false ? <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void updateMember(member, "activate")}>Reactivate</Button> : <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void updateMember(member, "deactivate")}>Deactivate</Button>}</>}{member.id !== currentUserId && member.active !== false && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setRecoveryTarget(member); setRecoveryReason(""); setIdentityVerified(false); }}>Recover MFA</Button>}</div>)}</div></section>
-      <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><div className="mb-4 flex items-center gap-2"><div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><UserPlus className="size-4" /></div><div><h2 className="text-sm font-semibold">Invite team member</h2><p className="text-xs text-muted-foreground">We’ll email a one-time link so they can confirm their address and set their password. Requires PostgreSQL and configured Resend email.</p></div></div>
-        <form onSubmit={addMember} className="grid gap-3 md:grid-cols-2"><label className="flex flex-col gap-1.5 text-xs font-medium">Full name<Input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Team member name" /></label><label className="flex flex-col gap-1.5 text-xs font-medium">Email<Input type="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" /></label><label className="flex flex-col gap-1.5 text-xs font-medium">Role<SelectControl value={role} onChange={(event) => setRole(event.target.value)} className="h-10 rounded-lg border bg-white px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"><option>Agent</option><option>Supervisor</option><option>Admin</option></SelectControl></label><div className="flex items-center gap-2"><Button type="submit" disabled={busy}><Plus data-icon="inline-start" />{busy ? "Sending…" : "Send invitation"}</Button><span className="flex items-center gap-1 text-[10px] text-muted-foreground"><ShieldCheck className="size-3" />One-time link expires in 48 hours.</span></div></form>
-      </section>
+      {notice && <div role="status" className="mb-4 rounded-lg border border-border bg-accent/30 px-4 py-3 text-sm text-foreground">{notice}</div>}
+      {error && <div role="alert" className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+
+      {/* Teams Card */}
+      <Card className="mb-5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">Teams</CardTitle>
+          <CardDescription className="text-xs">
+            Create workspace teams for conversation assignment and number/routing policies.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y border-y">
+            {groups.map((group) => (
+              <div key={group.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                <div className="min-w-[160px] flex-1">
+                  <p className="text-sm font-medium">{group.name}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {group.members.length ? group.members.map((member) => member.name).join(", ") : "No active members"}
+                  </p>
+                </div>
+                <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setEditingGroupId(group.id); setGroupName(group.name); setGroupMembers(group.members.map((member) => member.id)); }}>
+                  Edit
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => void deleteGroup(group)}>
+                  Delete
+                </Button>
+              </div>
+            ))}
+            {!groups.length && <p className="px-5 py-4 text-xs text-muted-foreground">No teams created yet.</p>}
+          </div>
+          <form onSubmit={saveGroup} className="grid gap-3 p-5">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="min-w-[220px] flex-1 space-y-1.5 text-xs font-medium">
+                {editingGroupId ? "Edit team name" : "New team name"}
+                <Input required maxLength={80} value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Customer support" />
+              </label>
+              <Button type="submit" disabled={busy}>{editingGroupId ? "Save team" : "Create team"}</Button>
+              {editingGroupId && (
+                <Button type="button" variant="outline" disabled={busy} onClick={() => { setEditingGroupId(""); setGroupName(""); setGroupMembers([]); }}>
+                  Cancel
+                </Button>
+              )}
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-medium">Active members</legend>
+              <div className="flex flex-wrap gap-2">
+                {team.filter((member) => member.active !== false).map((member) => (
+                  <label key={member.id} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-xs bg-muted/20">
+                    <CheckboxControl aria-label={`Include ${member.name} in this team`} checked={groupMembers.includes(member.id)} onChange={(event) => setGroupMembers((current) => event.target.checked ? [...current, member.id] : current.filter((id) => id !== member.id))} />
+                    {member.name}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* Workspace Access Card */}
+      <Card className="mb-5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">Workspace access</CardTitle>
+          <CardDescription className="text-xs">
+            Admins can update roles, recover MFA after a separate identity check, and deactivate accounts. Changes are audited and active sessions are revoked.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y border-t">
+            {team.map((member) => (
+              <div key={member.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                <Avatar className="size-10">
+                  <AvatarFallback className="bg-primary/10 text-xs text-primary font-medium">
+                    {member.name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-[180px] flex-1">
+                  <div className="text-sm font-medium">
+                    {member.name}
+                    {member.id === currentUserId && <span className="ml-2 text-[10px] text-muted-foreground">You</span>}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{member.email}</div>
+                </div>
+                <Badge variant={member.active === false ? "destructive" : member.role === "Owner" ? "default" : "outline"}>
+                  {member.active === false ? "Inactive" : member.role}
+                </Badge>
+                {member.role !== "Owner" && (
+                  <>
+                    <SelectControl aria-label={`Role for ${member.name}`} value={member.role} disabled={busy || member.active === false} onChange={(event) => void updateMember(member, "change_role", event.target.value)} className="h-9 rounded-md border bg-card px-2 text-xs">
+                      <option>Agent</option>
+                      <option>Supervisor</option>
+                      <option>Admin</option>
+                    </SelectControl>
+                    {member.active === false ? (
+                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void updateMember(member, "activate")}>Reactivate</Button>
+                    ) : (
+                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void updateMember(member, "deactivate")}>Deactivate</Button>
+                    )}
+                  </>
+                )}
+                {member.id !== currentUserId && member.active !== false && (
+                  <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => { setRecoveryTarget(member); setRecoveryReason(""); setIdentityVerified(false); }}>
+                    Recover MFA
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Invite Member Card */}
+      <Card className="mt-5">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UserPlus className="size-4" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-semibold">Invite team member</CardTitle>
+              <CardDescription className="text-xs">
+                We’ll email a one-time link so they can confirm their address and set their password.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={addMember} className="grid gap-3 md:grid-cols-2">
+            <label className="flex flex-col gap-1.5 text-xs font-medium">
+              Full name
+              <Input required maxLength={120} value={name} onChange={(event) => setName(event.target.value)} placeholder="Team member name" />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-medium">
+              Email
+              <Input type="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@company.com" />
+            </label>
+            <label className="flex flex-col gap-1.5 text-xs font-medium">
+              Role
+              <SelectControl value={role} onChange={(event) => setRole(event.target.value)} className="h-9 rounded-md border bg-card px-3 text-sm">
+                <option>Agent</option>
+                <option>Supervisor</option>
+                <option>Admin</option>
+              </SelectControl>
+            </label>
+            <div className="flex items-center gap-2">
+              <Button type="submit" disabled={busy}><Plus data-icon="inline-start" />{busy ? "Sending…" : "Send invitation"}</Button>
+              <span className="flex items-center gap-1 text-[10px] text-muted-foreground"><ShieldCheck className="size-3" />One-time link expires in 48 hours.</span>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
       <Dialog open={Boolean(recoveryTarget)} onOpenChange={(open) => { if (!open && !busy) { setRecoveryTarget(null); setRecoveryReason(""); setIdentityVerified(false); } }}><DialogContent><DialogHeader><DialogTitle>Recover MFA for {recoveryTarget?.name}</DialogTitle><DialogDescription>This resets their authenticator and signs out all active sessions. They can sign in with their password, but must enroll a new authenticator before making protected administrator changes. Verify their identity through a separate trusted channel before continuing.</DialogDescription></DialogHeader><form onSubmit={recoverMfa} className="flex flex-col gap-4"><label className="flex flex-col gap-1.5 text-sm font-medium">Identity verification record<Textarea maxLength={500} minLength={20} value={recoveryReason} onChange={(event) => setRecoveryReason(event.target.value)} placeholder="Record how you verified this member’s identity. Do not include passwords or authentication codes." /></label><label className="flex items-start gap-2 text-xs leading-relaxed"><CheckboxControl aria-label="Confirm identity verification" checked={identityVerified} onChange={(event) => setIdentityVerified(event.target.checked)} /><span>I verified this member’s identity through a separate trusted channel.</span></label><DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setRecoveryTarget(null)}>Cancel</Button><Button type="submit" variant="destructive" disabled={busy || !identityVerified || recoveryReason.trim().length < 20}>{busy ? "Recovering…" : "Reset MFA and revoke sessions"}</Button></DialogFooter></form></DialogContent></Dialog>
     </div>
   );

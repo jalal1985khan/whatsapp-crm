@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CheckCheck, Clock3, MessageSquareText, RotateCcw, Users, Webhook } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCrmSnapshot } from "@/lib/crm-store";
 import { getSession } from "@/lib/auth";
 import { getPostgresPool, getWorkspaceId } from "@/lib/postgres-pool";
@@ -83,11 +84,179 @@ export default async function ReportsPage() {
           </div>
           <Badge variant={isPostgres ? "success" : "warning"}>{isPostgres ? "PostgreSQL data" : "Local demo data"}</Badge>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{metrics.map(({ label, value, helper, icon: Icon }) => <section key={label} className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center justify-between"><span className="text-xs font-medium text-muted-foreground">{label}</span><Icon className="size-4 text-primary" /></div><div className="mt-4 text-3xl font-semibold tracking-tight">{value}</div><p className="mt-1 text-xs text-muted-foreground">{helper}</p></section>)}</div>
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1.3fr_1fr]"><section className="rounded-2xl border bg-card p-5 shadow-sm"><h2 className="text-sm font-semibold">Messaging activity</h2><p className="mt-1 text-xs text-muted-foreground">Messages present in {isPostgres ? "the PostgreSQL workspace" : "the local CRM store"}.</p><div className="mt-6 grid grid-cols-2 gap-3"><div className="rounded-xl bg-muted/40 p-4"><div className="text-xs text-muted-foreground">Inbound</div><div className="mt-2 text-2xl font-semibold">{messages.length - outgoing}</div></div><div className="rounded-xl bg-muted/40 p-4"><div className="text-xs text-muted-foreground">Outbound</div><div className="mt-2 text-2xl font-semibold">{outgoing}</div></div></div><p className="mt-4 text-[11px] text-muted-foreground">Delivery, response-time, and trend reporting use persisted message events and update when the page is refreshed.</p></section>
-        <section className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center justify-between"><div><h2 className="text-sm font-semibold">Sender numbers</h2><p className="mt-1 text-xs text-muted-foreground">Number availability in this CRM.</p></div><Link href="/admin/numbers" className="text-xs font-medium text-primary">Manage</Link></div><div className="mt-4 flex flex-col gap-3">{numbers.map((number) => <div key={number.id} className="flex items-center gap-3 rounded-xl border p-3"><span className={`size-2 rounded-full ${number.state === "Active" ? "bg-emerald-500" : number.state === "Paused" ? "bg-slate-400" : "bg-amber-400"}`} /><div className="min-w-0 flex-1"><div className="truncate text-xs font-medium">{number.label}</div><div className="text-[10px] text-muted-foreground">{number.number}</div></div><Badge variant={number.state === "Active" ? "success" : "outline"}>{number.state}</Badge></div>)}</div></section></div>
-        {isPostgres && responseStats && queueStats && <div className="mt-4 grid gap-4 lg:grid-cols-2"><section className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center gap-2"><Clock3 className="size-4 text-primary" /><div><h2 className="text-sm font-semibold">First response · 30 days</h2><p className="text-xs text-muted-foreground">From a customer’s first inbound message to the first agent reply.</p></div></div><div className="mt-5 grid grid-cols-3 gap-3"><div className="rounded-xl bg-muted/40 p-3"><p className="text-[10px] text-muted-foreground">Answered</p><p className="mt-1 text-xl font-semibold">{responseStats.answered}</p></div><div className="rounded-xl bg-muted/40 p-3"><p className="text-[10px] text-muted-foreground">Median</p><p className="mt-1 text-xl font-semibold">{formatMinutes(responseStats.medianMinutes)}</p></div><div className="rounded-xl bg-muted/40 p-3"><p className="text-[10px] text-muted-foreground">95th percentile</p><p className="mt-1 text-xl font-semibold">{formatMinutes(responseStats.p95Minutes)}</p></div></div></section><section className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center gap-2"><Clock3 className="size-4 text-primary" /><div><h2 className="text-sm font-semibold">Unanswered queue age</h2><p className="text-xs text-muted-foreground">Open conversations where the latest customer message is waiting for a reply.</p></div></div><div className="mt-4 flex items-baseline justify-between"><p className="text-3xl font-semibold">{queueStats.awaiting}</p><p className="text-xs text-muted-foreground">Oldest: {formatMinutes(queueStats.oldestMinutes)}</p></div><div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">{[["Under 15 min", queueStats.under15m], ["15–59 min", queueStats.under1h], ["1–4 hours", queueStats.under4h], ["Over 4 hours", queueStats.over4h]].map(([label, value]) => <div key={String(label)} className="rounded-lg border p-3"><p className="text-[10px] text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>)}</div></section></div>}
-        {isPostgres && operations && <div className="mt-4 grid gap-4 lg:grid-cols-3"><section className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center gap-2"><Webhook className="size-4 text-primary" /><h2 className="text-sm font-semibold">Webhook queue</h2></div><p className="mt-4 text-3xl font-semibold">{operations.pendingWebhooks}</p><p className="mt-1 text-xs text-muted-foreground">Waiting, processing, or failed events</p><p className="mt-3 border-t pt-3 text-xs text-muted-foreground">Oldest event: {formatMinutes(operations.oldestWebhookMinutes)}</p><Link href="/admin/webhooks" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">Review webhook health</Link></section><section className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center gap-2"><MessageSquareText className="size-4 text-primary" /><h2 className="text-sm font-semibold">Confirmed failures · 24 hours</h2></div><p className="mt-4 text-3xl font-semibold">{operations.failureRate == null ? "—" : `${operations.failureRate.toFixed(1)}%`}</p><p className="mt-1 text-xs text-muted-foreground">{operations.failed24Hours} confirmed failures of {operations.confirmed24Hours} confirmed outcomes</p><div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3 text-xs text-muted-foreground"><span>Unresolved: {operations.unresolved24Hours}</span><span>Still queued: {operations.pendingSend24Hours}</span></div><p className="mt-2 text-[10px] text-muted-foreground">Unknown and pending sends are excluded from the confirmed failure rate.</p></section><section className="rounded-2xl border bg-card p-5 shadow-sm"><div className="flex items-center gap-2"><RotateCcw className="size-4 text-primary" /><h2 className="text-sm font-semibold">Recent number changes</h2></div><div className="mt-3 space-y-2">{operations.recentFailovers.length ? operations.recentFailovers.map((event, index) => <div key={`${event.createdAt}-${index}`} className="border-b pb-2 last:border-0"><p className="text-xs font-medium">{event.from} → {event.to} <span className="font-normal text-muted-foreground">· {event.outcome.replaceAll("_", " ").toLowerCase()}</span></p><p className="mt-0.5 text-[10px] text-muted-foreground">{event.reason} · {new Date(event.createdAt).toLocaleString()}</p></div>) : <p className="py-4 text-xs text-muted-foreground">No failover events recorded.</p>}</div></section></div>}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map(({ label, value, helper, icon: Icon }) => (
+            <Card key={label}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-xs font-medium text-muted-foreground">{label}</CardTitle>
+                <Icon className="size-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold tracking-tight">{value}</div>
+                <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold">Messaging activity</CardTitle>
+              <CardDescription className="text-xs">
+                Messages present in {isPostgres ? "the PostgreSQL workspace" : "the local CRM store"}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-muted/40 p-4">
+                  <div className="text-xs text-muted-foreground">Inbound</div>
+                  <div className="mt-2 text-2xl font-semibold">{messages.length - outgoing}</div>
+                </div>
+                <div className="rounded-xl bg-muted/40 p-4">
+                  <div className="text-xs text-muted-foreground">Outbound</div>
+                  <div className="mt-2 text-2xl font-semibold">{outgoing}</div>
+                </div>
+              </div>
+              <p className="mt-4 text-[11px] text-muted-foreground">
+                Delivery, response-time, and trend reporting use persisted message events and update when the page is refreshed.
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-semibold">Sender numbers</CardTitle>
+                  <CardDescription className="text-xs">Number availability in this CRM.</CardDescription>
+                </div>
+                <Link href="/admin/numbers" className="text-xs font-medium text-primary">Manage</Link>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-3">
+                {numbers.map((number) => (
+                  <div key={number.id} className="flex items-center gap-3 rounded-xl border p-3">
+                    <span className={`size-2 rounded-full ${number.state === "Active" ? "bg-emerald-500" : number.state === "Paused" ? "bg-slate-400" : "bg-amber-400"}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-medium">{number.label}</div>
+                      <div className="text-[10px] text-muted-foreground">{number.number}</div>
+                    </div>
+                    <Badge variant={number.state === "Active" ? "success" : "outline"}>{number.state}</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        {isPostgres && responseStats && queueStats && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock3 className="size-4 text-primary" />
+                  <div>
+                    <CardTitle className="text-sm font-semibold">First response · 30 days</CardTitle>
+                    <CardDescription className="text-xs">From a customer’s first inbound message to the first agent reply.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-xl bg-muted/40 p-3">
+                    <p className="text-[10px] text-muted-foreground">Answered</p>
+                    <p className="mt-1 text-xl font-semibold">{responseStats.answered}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3">
+                    <p className="text-[10px] text-muted-foreground">Median</p>
+                    <p className="mt-1 text-xl font-semibold">{formatMinutes(responseStats.medianMinutes)}</p>
+                  </div>
+                  <div className="rounded-xl bg-muted/40 p-3">
+                    <p className="text-[10px] text-muted-foreground">95th percentile</p>
+                    <p className="mt-1 text-xl font-semibold">{formatMinutes(responseStats.p95Minutes)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Clock3 className="size-4 text-primary" />
+                  <div>
+                    <CardTitle className="text-sm font-semibold">Unanswered queue age</CardTitle>
+                    <CardDescription className="text-xs">Open conversations where the latest customer message is waiting for a reply.</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline justify-between">
+                  <p className="text-3xl font-semibold">{queueStats.awaiting}</p>
+                  <p className="text-xs text-muted-foreground">Oldest: {formatMinutes(queueStats.oldestMinutes)}</p>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  {[["Under 15 min", queueStats.under15m], ["15–59 min", queueStats.under1h], ["1–4 hours", queueStats.under4h], ["Over 4 hours", queueStats.over4h]].map(([label, value]) => (
+                    <div key={String(label)} className="rounded-lg border p-3">
+                      <p className="text-[10px] text-muted-foreground">{label}</p>
+                      <p className="mt-1 font-semibold">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        {isPostgres && operations && (
+          <div className="mt-4 grid gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <Webhook className="size-4 text-primary" />
+                  <CardTitle className="text-sm font-semibold">Webhook queue</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{operations.pendingWebhooks}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Waiting, processing, or failed events</p>
+                <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">Oldest event: {formatMinutes(operations.oldestWebhookMinutes)}</p>
+                <Link href="/admin/webhooks" className="mt-3 inline-block text-xs font-medium text-primary hover:underline">Review webhook health</Link>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <MessageSquareText className="size-4 text-primary" />
+                  <CardTitle className="text-sm font-semibold">Confirmed failures · 24 hours</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-semibold">{operations.failureRate == null ? "—" : `${operations.failureRate.toFixed(1)}%`}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{operations.failed24Hours} confirmed failures of {operations.confirmed24Hours} confirmed outcomes</p>
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
+                  <span>Unresolved: {operations.unresolved24Hours}</span>
+                  <span>Still queued: {operations.pendingSend24Hours}</span>
+                </div>
+                <p className="mt-2 text-[10px] text-muted-foreground">Unknown and pending sends are excluded from the confirmed failure rate.</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="size-4 text-primary" />
+                  <CardTitle className="text-sm font-semibold">Recent number changes</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {operations.recentFailovers.length ? operations.recentFailovers.map((event, index) => (
+                    <div key={`${event.createdAt}-${index}`} className="border-b pb-2 last:border-0">
+                      <p className="text-xs font-medium">{event.from} → {event.to} <span className="font-normal text-muted-foreground">· {event.outcome.replaceAll("_", " ").toLowerCase()}</span></p>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{event.reason} · {new Date(event.createdAt).toLocaleString()}</p>
+                    </div>
+                  )) : <p className="py-4 text-xs text-muted-foreground">No failover events recorded.</p>}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
         {isPostgres && reportError && <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs text-amber-950">{reportError}</div>}
         {!isPostgres && <div className="mt-4 rounded-xl border bg-white p-4 text-xs text-muted-foreground">First-response and queue-age metrics require PostgreSQL message timestamps.</div>}
       </div>
