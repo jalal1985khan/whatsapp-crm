@@ -96,7 +96,7 @@ export async function getTwilioAuthTokensByAccountSid(accountSid: string): Promi
         if (row.authTokenEncrypted) {
           try {
             tokens.add(decryptTwilioAuthToken(String(row.authTokenEncrypted)));
-          } catch {}
+          } catch { }
         }
       }
 
@@ -108,10 +108,10 @@ export async function getTwilioAuthTokensByAccountSid(accountSid: string): Promi
         if (row.twilioAuthTokenEncrypted) {
           try {
             tokens.add(decryptTwilioAuthToken(String(row.twilioAuthTokenEncrypted)));
-          } catch {}
+          } catch { }
         }
       }
-    } catch {}
+    } catch { }
   }
 
   return Array.from(tokens);

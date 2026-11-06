@@ -60,7 +60,7 @@ export function AdminSidebarLayout({ children, user }: AdminSidebarLayoutProps) 
       items: [
         { name: "Live Inbox", href: "/", icon: MessageSquare, exact: true },
         { name: "Customer Directory", href: "/customers", icon: Users, exact: false },
-        { name: "Reports & Logs", href: "/reports", icon: BarChart3, exact: false },
+        { name: "AI Analytics", href: "/reports", icon: BarChart3, exact: false, badge: "New" },
       ],
     },
     {
