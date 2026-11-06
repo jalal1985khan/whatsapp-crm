@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test": "npx --yes tsx --conditions=react-server --test tests/*.test.ts",
     "db:migrate": "node scripts/migrate-postgres.mjs",
     "owner:create": "node scripts/create-owner.mjs"
   },
@@ -23,11 +24,14 @@
     "@shadcn/react": "^0.3.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cn": "^0.5.2",
     "lucide-react": "^0.468.0",
     "next": "^16.4.3",
     "pg": "^8.23.1",
+    "radix-ui": "^1.8.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "server-only": "^0.0.1",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {

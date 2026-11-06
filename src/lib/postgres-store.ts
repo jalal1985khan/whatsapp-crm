@@ -271,7 +271,7 @@ async function saveStore(client: PoolClient, workspaceId: string, store: Store, 
       await client.query(`INSERT INTO "ConsentRecord" ("id", "workspaceId", "contactId", "channel", "scope", "status", "evidenceSource", "wordingVersion", "capturedAt", "capturedByUserId", "revokedAt")
         VALUES ($1,$2,$3,'WHATSAPP','WHATSAPP_MESSAGING',$4::"ConsentStatus",$5,$6,$7,$8,$9) ON CONFLICT ("id") DO NOTHING`,
       [consent.id, workspaceId, chat.id, consent.status === "opted_out" ? "OPTED_OUT" : "OPTED_IN", consent.source, consent.wordingVersion ?? null, date(consent.updatedAt), actorId, consent.status === "opted_out" ? date(consent.updatedAt) : null]);
-      await client.query(`UPDATE "Contact" SET "suppressionState"=$3,"suppressedAt"=CASE WHEN $3='OPTED_OUT' THEN $4 ELSE NULL END WHERE "workspaceId"=$1 AND "id"=$2`, [workspaceId, chat.id, consent.status === "opted_out" ? "OPTED_OUT" : "OPTED_IN", date(consent.updatedAt)]);
+      await client.query(`UPDATE "Contact" SET "suppressionState"=$3,"suppressedAt"=CASE WHEN $3='OPTED_OUT' THEN $4::timestamp ELSE NULL END WHERE "workspaceId"=$1 AND "id"=$2`, [workspaceId, chat.id, consent.status === "opted_out" ? "OPTED_OUT" : "OPTED_IN", date(consent.updatedAt)]);
     }
   }
 }

@@ -12,10 +12,11 @@ import {
   Info, Key, Lock, LogOut, MessageCircle, MessageSquare, MoreHorizontal, MoreVertical, Paperclip, Plus, Search, Send,
   Settings2, ShieldCheck, Smartphone, Smile, Sparkles, Users, Wifi, X,
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +27,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport } from "@/components/ui/message-scroller";
@@ -95,53 +99,59 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
   const messageId = message.id ?? `${chat.id}-${index}`;
   return (
     <MessageScrollerItem id={message.id ? `crm-message-${message.id}` : undefined} messageId={messageId} scrollAnchor={!message.mine}>
-      <div className={`flex w-full mb-2 ${message.mine ? "justify-end" : "justify-start"}`}>
+      <div className={`flex w-full mb-3 ${message.mine ? "justify-end" : "justify-start"}`}>
         <div
           className={cn(
-            "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-lg px-3.5 py-2 text-xs shadow-xs leading-relaxed",
+            "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-2xl px-4 py-2.5 text-sm shadow-xs leading-relaxed",
             message.mine
-              ? "rounded-tr-none bg-primary/15 text-foreground border border-primary/25"
-              : "rounded-tl-none bg-card text-card-foreground border border-border"
+              ? "rounded-tr-xs bg-primary text-primary-foreground"
+              : "rounded-tl-xs bg-card text-card-foreground border border-border/70"
           )}
         >
           {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("image/") && (
-            <Image src={message.media.accessUrl} alt={message.media.filename || "Attachment image"} width={480} height={360} unoptimized className="mb-2 max-h-72 w-auto max-w-full rounded-md object-contain" />
+            <Image src={message.media.accessUrl} alt={message.media.filename || "Attachment image"} width={480} height={360} unoptimized className="mb-2 max-h-72 w-auto max-w-full rounded-lg object-contain" />
           )}
           {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("video/") && (
-            <video controls preload="none" src={message.media.accessUrl} className="mb-2 max-h-72 max-w-full rounded-md" />
+            <video controls preload="none" src={message.media.accessUrl} className="mb-2 max-h-72 max-w-full rounded-lg" />
           )}
           {message.media?.stored && message.media.messageId && message.media.accessUrl && message.media.mimeType?.startsWith("audio/") && (
             <audio controls preload="none" src={message.media.accessUrl} className="mb-2 max-w-full" />
           )}
           {message.media && !/^(image|audio|video)\//.test(message.media.mimeType || "") && (
-            <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/50 px-2.5 py-1.5">
-              <Paperclip className="size-3.5 shrink-0 text-muted-foreground" />
+            <div className={cn(
+              "mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs",
+              message.mine ? "border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground" : "border-border bg-muted/50 text-foreground"
+            )}>
+              <Paperclip className="size-3.5 shrink-0 opacity-80" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-foreground">{message.media.filename || `${message.media.type} attachment`}</p>
-                <p className="text-[10px] text-muted-foreground">{message.media.mimeType || message.media.type}{message.media.size ? ` · ${(message.media.size / (1024 * 1024)).toFixed(1)} MB` : ""}</p>
+                <p className="truncate font-medium">{message.media.filename || `${message.media.type} attachment`}</p>
+                <p className="text-[10px] opacity-75">{message.media.mimeType || message.media.type}{message.media.size ? ` · ${(message.media.size / (1024 * 1024)).toFixed(1)} MB` : ""}</p>
               </div>
               {message.media.stored && message.media.accessUrl && (
-                <a href={message.media.accessUrl} className="shrink-0 text-xs font-semibold text-primary hover:underline">Download</a>
+                <a href={message.media.accessUrl} className="shrink-0 text-xs font-semibold underline hover:opacity-80">Download</a>
               )}
             </div>
           )}
-          <span className="whitespace-pre-wrap break-words inline text-xs">
+          <span className="whitespace-pre-wrap break-words inline text-sm">
             {message.media?.caption || message.text}
           </span>
-          <span className="float-right ml-3 mt-1 inline-flex items-center gap-1 text-[10px] text-muted-foreground select-none">
+          <span className={cn(
+            "float-right ml-3 mt-1 inline-flex items-center gap-1 text-[10px] select-none",
+            message.mine ? "text-primary-foreground/75" : "text-muted-foreground"
+          )}>
             {message.mine && message.senderNumberId && (
-              <span className="text-[10px] text-primary font-medium mr-0.5">
+              <span className="text-[10px] font-semibold text-primary-foreground/90 mr-0.5">
                 {senderNumbers.find((number) => number.id === message.senderNumberId)?.label ?? "WhatsApp"}
               </span>
             )}
             <span>{message.time}</span>
             {message.mine && ["sent", "delivered", "read"].includes(message.status ?? "") && (
-              <CheckCheck className={cn("size-3.5", message.status === "read" ? "text-primary font-semibold" : "text-muted-foreground")} />
+              <CheckCheck className={cn("size-3.5", message.status === "read" ? "text-primary-foreground font-bold" : "text-primary-foreground/75")} />
             )}
-            {message.mine && message.status === "sent" && <Check className="size-3 text-muted-foreground" />}
-            {message.mine && (message.status === "queued" || message.status === "local") && <Clock3 className="size-3 text-muted-foreground" />}
+            {message.mine && message.status === "sent" && <Check className="size-3 text-primary-foreground/75" />}
+            {message.mine && (message.status === "queued" || message.status === "local") && <Clock3 className="size-3 text-primary-foreground/75" />}
             {message.mine && message.status === "failed" && (
-              <span className="text-destructive font-semibold text-[10px] flex items-center gap-1">
+              <span className="text-destructive font-semibold text-[10px] flex items-center gap-1 bg-white/90 px-1 rounded">
                 Failed
                 {canRetry && message.id && (
                   <button type="button" onClick={() => onRetry(message.id!)} className="underline hover:text-destructive/80 ml-0.5">
@@ -817,22 +827,41 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   return (
     <main className="flex h-screen min-h-[600px] overflow-hidden bg-background text-foreground font-sans flex-col">
       {notice && (
-        <div role="status" className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 dark:bg-amber-950/40 px-4 py-2 text-xs text-amber-900 dark:text-amber-200 z-50 shrink-0">
-          <Info className="size-4 shrink-0 text-amber-700 dark:text-amber-400" />
-          <span className="flex-1 font-medium">{notice}</span>
-          <button onClick={() => setNotice("")} className="text-amber-700 hover:text-amber-900 dark:text-amber-400" type="button" aria-label="Dismiss alert">
-            <X className="size-4" />
-          </button>
+        <div className="border-b border-border bg-card p-2 px-4 shrink-0 z-50">
+          <Alert variant="destructive" className="flex items-center justify-between py-2 border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <AlertDescription className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                {notice}
+              </AlertDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6 text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
+              onClick={() => setNotice("")}
+              aria-label="Dismiss alert"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </Alert>
         </div>
       )}
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* 1. Slim Left Rail (WhatsApp Desktop Style) */}
-        <aside className="hidden w-[64px] shrink-0 flex-col items-center justify-between border-r border-border bg-muted/40 py-3 sm:flex select-none">
+        {/* 1. Slim Left Rail (Shadcn Radix Sidebar Rail Style) */}
+        <aside className="hidden w-16 shrink-0 flex-col items-center justify-between border-r border-border bg-sidebar py-3 sm:flex select-none">
           <div className="flex flex-col items-center gap-4">
-            <Link href="/" aria-label="WhatsApp CRM" className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
-              <MessageSquare className="size-5 fill-current" />
-            </Link>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Link href="/" aria-label="WhatsApp CRM" className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs transition-transform hover:scale-105">
+                  <MessageSquare className="size-5 fill-current" />
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10} className="font-semibold text-xs">
+                Relay CRM
+              </TooltipContent>
+            </Tooltip>
             <div className="flex flex-col items-center gap-1.5">
               <RailLink href="/" active label="Chats">
                 <MessageSquare className="size-5" />
@@ -855,11 +884,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
           <div className="flex flex-col items-center gap-2">
             {adminCanPurgeMedia && (
-              <Button asChild variant="ghost" size="icon" className="size-10 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground">
-                <Link href="/admin/numbers" aria-label="Admin settings" title="Admin settings">
-                  <Settings2 className="size-5" />
-                </Link>
-              </Button>
+              <RailLink href="/admin/numbers" label="Workspace settings">
+                <Settings2 className="size-5" />
+              </RailLink>
             )}
             <RailButton label="Help" onClick={() => setHelpOpen(true)}>
               <CircleHelp className="size-5" />
@@ -913,19 +940,25 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
         {/* 2. Conversations Column (WhatsApp Chat List) */}
         <section className={`${activeId ? "hidden sm:flex" : "flex"} w-full sm:w-[360px] md:w-[390px] lg:w-[420px] shrink-0 flex-col border-r border-border bg-card h-full`}>
           {/* Chats Header */}
-          <div className="flex h-[60px] items-center justify-between border-b border-border bg-muted/40 px-4 shrink-0">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">Chats</h1>
+          <div className="flex h-14 items-center justify-between border-b border-border bg-card/50 px-4 shrink-0">
+            <h1 className="text-lg font-bold tracking-tight text-foreground">Chats</h1>
             <div className="flex items-center gap-1 text-muted-foreground">
               {(user.role === "Owner" || user.role === "Admin") && (
                 <div className="relative">
-                  <IconButton label={`Admin alerts${alertCount ? `, ${alertCount} unread` : ""}`} onClick={() => { setAlertsOpen((open) => !open); void refreshAlerts(); }}>
-                    <Bell className="size-5 text-muted-foreground" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg relative text-muted-foreground hover:text-foreground"
+                    onClick={() => { setAlertsOpen((open) => !open); void refreshAlerts(); }}
+                    aria-label={`Admin alerts${alertCount ? `, ${alertCount} unread` : ""}`}
+                  >
+                    <Bell className="size-4" />
                     {alertCount > 0 && (
-                      <span className="absolute right-1 top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-4 text-destructive-foreground">
+                      <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground">
                         {alertCount > 99 ? "99+" : alertCount}
                       </span>
                     )}
-                  </IconButton>
+                  </Button>
                   {alertsOpen && (
                     <Card aria-label="Admin alerts" className="absolute left-0 sm:left-auto sm:right-0 top-11 z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden border-border shadow-2xl">
                       <CardHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-3 bg-muted/40 space-y-0">
@@ -963,9 +996,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   )}
                 </div>
               )}
-              <Button asChild variant="ghost" size="icon" className="size-9 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground">
+              <Button asChild variant="ghost" size="icon" className="size-8 rounded-lg text-muted-foreground hover:text-foreground">
                 <Link href="/customers?new=1" aria-label="New chat" title="New chat">
-                  <Plus className="size-5" />
+                  <Plus className="size-4" />
                 </Link>
               </Button>
             </div>
@@ -973,18 +1006,18 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
           {/* WhatsApp Search Bar */}
           <div className="p-2.5 pb-2 border-b border-border bg-card">
-            <div className="relative flex items-center rounded-lg bg-muted/50 px-3 py-1.5 focus-within:bg-card focus-within:ring-1 focus-within:ring-primary transition-all">
-              <Search className="size-4 shrink-0 text-muted-foreground mr-2.5" />
-              <input
+            <div className="relative flex items-center">
+              <Search className="absolute left-3 size-4 shrink-0 text-muted-foreground pointer-events-none" />
+              <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search or start new chat"
-                className="w-full bg-transparent text-[13.5px] text-foreground placeholder:text-muted-foreground outline-none"
+                className="h-9 pl-9 pr-8 text-xs bg-muted/40 border-border focus-visible:bg-background"
               />
               {query && (
-                <button type="button" onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground ml-1" aria-label="Clear search">
+                <Button type="button" variant="ghost" size="icon" onClick={() => setQuery("")} className="absolute right-1 size-7 text-muted-foreground hover:text-foreground" aria-label="Clear search">
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -995,29 +1028,29 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
               const label = tab === "All" ? "All messages" : tab;
               const isActive = activeTab === (tab === "All" ? "All messages" : tab);
               return (
-                <button
+                <Button
                   key={tab}
                   type="button"
+                  variant={isActive ? "default" : "secondary"}
+                  size="sm"
                   onClick={() => setActiveTab(label)}
                   className={cn(
-                    "shrink-0 rounded-full px-3 py-1 text-xs transition-colors cursor-pointer",
-                    isActive
-                      ? "bg-primary/15 text-primary font-semibold"
-                      : "bg-muted/60 text-muted-foreground hover:bg-muted font-medium"
+                    "h-7 rounded-full px-3 text-xs font-medium cursor-pointer transition-all",
+                    isActive ? "shadow-2xs font-semibold" : "text-muted-foreground hover:text-foreground bg-muted/60"
                   )}
                 >
                   {tab}
                   {tab === "Unread" && unreadCount > 0 && (
-                    <span className="ml-1.5 rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+                    <span className="ml-1.5 rounded-full bg-primary-foreground text-primary px-1 text-[10px] font-bold">
                       {unreadCount}
                     </span>
                   )}
-                </button>
+                </Button>
               );
             })}
-            <IconButton label="Filter conversations" className="ml-auto size-7 shrink-0 text-muted-foreground" onClick={() => setFilterOpen((open) => !open)}>
+            <Button variant="ghost" size="icon" className="ml-auto size-7 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => setFilterOpen((open) => !open)} aria-label="Filter conversations">
               <Filter className="size-3.5" />
-            </IconButton>
+            </Button>
           </div>
 
           {/* Saved Inbox Views */}
@@ -1075,7 +1108,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
           )}
 
           {/* WhatsApp Chat List Items */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto p-1 space-y-0.5">
             {visibleChats.map((chat) => {
               const isSelected = activeId === chat.id;
               return (
@@ -1083,37 +1116,49 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   key={chat.id}
                   onClick={() => openChat(chat)}
                   className={cn(
-                    "flex w-full items-center gap-3.5 px-3.5 py-3 text-left transition-colors cursor-pointer border-b border-border/50",
-                    isSelected ? "bg-muted/70" : "hover:bg-muted/40 bg-card"
+                    "flex w-full items-start gap-3 p-3 rounded-xl text-left transition-all cursor-pointer border border-transparent",
+                    isSelected
+                      ? "bg-muted shadow-2xs border-border/40 font-medium"
+                      : "hover:bg-muted/50 bg-card/40"
                   )}
                   type="button"
                 >
-                  <Avatar className="size-12 shrink-0">
-                    <AvatarFallback className={`${chat.color} text-white font-medium text-sm`}>
-                      {chat.initials}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="relative shrink-0">
+                    <Avatar className="size-10">
+                      <AvatarFallback className={cn("text-xs font-semibold text-white", chat.color)}>
+                        {chat.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span
+                      className={cn(
+                        "absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-card",
+                        chat.state === "Open" ? "bg-emerald-500" : chat.state === "Waiting" ? "bg-amber-500" : "bg-muted-foreground/60"
+                      )}
+                    />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <span className="truncate text-[15px] font-medium text-foreground">{chat.name}</span>
-                      <span className={cn("shrink-0 text-[11px]", chat.unread ? "text-primary font-semibold" : "text-muted-foreground")}>
+                      <span className="truncate text-sm font-semibold text-foreground">{chat.name}</span>
+                      <span className={cn("shrink-0 text-[11px]", chat.unread ? "text-primary font-bold" : "text-muted-foreground")}>
                         {chat.time}
                       </span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[13px] text-muted-foreground leading-tight flex-1">
-                        {chat.preview}
+                      <p className="truncate text-xs text-muted-foreground leading-snug flex-1">
+                        {chat.preview || "No conversation yet"}
                       </p>
                       {chat.unread ? (
-                        <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
+                        <Badge variant="default" className="size-5 rounded-full p-0 flex items-center justify-center text-[10px] font-bold shrink-0">
                           {chat.unread}
-                        </span>
+                        </Badge>
                       ) : null}
                     </div>
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <span className="capitalize">{chat.state ?? "Open"}</span>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-normal text-muted-foreground capitalize">
+                        {chat.state ?? "Open"}
+                      </Badge>
                       {chat.messageCount ? (
-                        <span>· {channelNumbers.find((n) => n.id === chat.latestMessageSenderNumberId)?.label ?? "WhatsApp"}</span>
+                        <span className="truncate">· {channelNumbers.find((n) => n.id === chat.latestMessageSenderNumberId)?.label ?? "WhatsApp"}</span>
                       ) : null}
                       <QueueAgeBadge chat={chat} />
                     </div>
@@ -1129,25 +1174,27 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
           </div>
 
           {/* Bottom Numbers Status Pill */}
-          <div className="border-t border-border p-3 bg-muted/40">
-            <Link href="/admin/numbers" className="flex items-center gap-2.5 rounded-lg bg-card p-2.5 shadow-2xs hover:bg-muted/40 transition-colors border border-border">
-              <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Wifi className="size-3.5" />
+          <div className="border-t border-border p-2.5 bg-sidebar/50 shrink-0">
+            <Link href="/admin/numbers" className="flex items-center gap-3 rounded-xl border border-border bg-card p-2.5 shadow-2xs hover:bg-accent/40 transition-colors">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+                <Wifi className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-foreground">{senderNumbers.length} connected WhatsApp number{senderNumbers.length === 1 ? "" : "s"}</div>
-                <div className="text-[10px] text-muted-foreground">Twilio WhatsApp multi-account gateway</div>
+                <div className="text-xs font-semibold text-foreground truncate">
+                  {senderNumbers.length} connected WhatsApp number{senderNumbers.length === 1 ? "" : "s"}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">Twilio WhatsApp multi-account gateway</div>
               </div>
-              <ChevronRight className="size-4 text-muted-foreground" />
+              <ChevronRight className="size-4 text-muted-foreground shrink-0" />
             </Link>
           </div>
         </section>
 
       {/* 3. Right Chat Viewport */}
       {activeChat ? (
-        <section className="flex min-w-0 flex-1 flex-col h-full bg-muted/20 relative">
+        <section className="flex min-w-0 flex-1 flex-col h-full bg-muted/15 relative">
           {/* WhatsApp Chat Header */}
-          <header className="flex h-[60px] items-center justify-between border-b border-border bg-muted/40 px-4 shrink-0 select-none">
+          <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4 shrink-0 select-none">
             <div className="flex min-w-0 items-center gap-3">
               <Button
                 type="button"
@@ -1157,45 +1204,45 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                 className="sm:hidden size-8 text-muted-foreground hover:text-foreground"
                 aria-label="Back to chat list"
               >
-                <ChevronLeft className="size-5" />
+                <ChevronLeft className="size-4" />
               </Button>
-              <Avatar className="size-10 shrink-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
-                <AvatarFallback className={`${activeChat.color} text-white font-medium text-xs`}>
+              <Avatar className="size-9 shrink-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
+                <AvatarFallback className={cn("text-xs font-semibold text-white", activeChat.color)}>
                   {activeChat.initials}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 cursor-pointer" onClick={() => setShowProfile((open) => !open)}>
                 <div className="flex items-center gap-2">
-                  <h2 className="truncate text-[15px] font-semibold text-foreground leading-tight">{activeChat.name}</h2>
-                  <Badge variant="outline" className="hidden sm:inline-flex text-[10px] py-0 px-1.5 text-muted-foreground">
+                  <h2 className="truncate text-sm font-semibold text-foreground leading-none">{activeChat.name}</h2>
+                  <Badge variant="outline" className="hidden sm:inline-flex text-[10px] py-0 px-1.5 font-normal text-muted-foreground">
                     {activeThreadState}
                   </Badge>
                 </div>
-                <p className="truncate text-[12px] text-muted-foreground leading-tight">
+                <p className="truncate text-xs text-muted-foreground mt-0.5 leading-none">
                   {activeChat.phone}
                 </p>
               </div>
             </div>
 
             {/* Header Right Actions */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               {/* Sender Number Selector with Shadcn DropdownMenu */}
               <DropdownMenu open={numberMenu} onOpenChange={setNumberMenu}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     disabled={!senderNumbersForChat.length}
-                    className="flex h-8 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-xs text-foreground hover:bg-muted shadow-2xs"
+                    className="h-8 gap-2 px-3 text-xs font-medium rounded-md shadow-2xs border-border"
                     type="button"
                     variant="outline"
                   >
                     <span className={cn("size-2 rounded-full", activeNumber ? "bg-emerald-500" : "bg-muted-foreground")} />
-                    <span className="hidden sm:inline font-medium">
+                    <span className="hidden sm:inline font-semibold text-foreground">
                       {activeNumber?.label ?? "No number"}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
                       {activeNumber?.number}
                     </span>
-                    {senderNumbers.length > 0 && <ChevronDown className="size-3 text-muted-foreground" />}
+                    {senderNumbers.length > 0 && <ChevronDown className="size-3 text-muted-foreground ml-0.5" />}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72">
@@ -1235,9 +1282,15 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <IconButton label="Contact info" onClick={() => setShowProfile((open) => !open)}>
-                <Info className="size-5 text-muted-foreground" />
-              </IconButton>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                onClick={() => setShowProfile((open) => !open)}
+                aria-label="Contact info"
+              >
+                <Info className="size-4" />
+              </Button>
             </div>
           </header>
 
@@ -1246,15 +1299,15 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
             <MessageScroller className="flex-1 overflow-hidden relative">
               <MessageScrollerViewport
                 aria-label={`Conversation with ${activeChat.name}`}
-                className="h-full px-4 py-3 md:px-12 bg-muted/20"
+                className="h-full px-4 py-3 md:px-12 bg-muted/15"
               >
                 <MessageScrollerContent className="mx-auto flex w-full max-w-3xl flex-col pb-4">
                   {/* Subtle WhatsApp Encryption Banner */}
                   <div className="my-2 flex justify-center">
-                    <span className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-center text-[11.5px] text-muted-foreground shadow-2xs">
+                    <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1 text-center text-xs font-normal text-muted-foreground bg-card/80 backdrop-blur shadow-2xs">
                       <Lock className="size-3 text-muted-foreground shrink-0" />
                       Messages and media are end-to-end encrypted in your CRM timeline.
-                    </span>
+                    </Badge>
                   </div>
 
                   {!activeChat.detailLoaded && (
@@ -1266,14 +1319,14 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   )}
 
                   {senderChanged && previousSender && activeNumber && (
-                    <div className="my-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-amber-950 dark:text-amber-200 text-xs shadow-2xs">
+                    <Alert className="my-2 border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-2xs">
                       <div className="flex items-center gap-1.5 font-semibold text-amber-900 dark:text-amber-300">
                         <Info className="size-4" /> This chat switched WhatsApp sender number
                       </div>
-                      <p className="mt-1 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/80">
+                      <AlertDescription className="mt-1 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/80">
                         Previous messages were sent from {previousSender.label} ({previousSender.number}). New replies will use {activeNumber.label} ({activeNumber.number}). Conversation history is preserved across sender numbers.
-                      </p>
-                    </div>
+                      </AlertDescription>
+                    </Alert>
                   )}
 
                   {isThreadFiltered && (
@@ -1293,9 +1346,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
                   {/* Today date pill */}
                   <div className="my-2 flex justify-center">
-                    <span className="rounded-md border border-border bg-card px-3 py-0.5 text-[11px] font-medium text-muted-foreground shadow-2xs">
+                    <Badge variant="outline" className="px-3 py-0.5 text-[11px] font-medium text-muted-foreground bg-card/80 backdrop-blur shadow-2xs">
                       Today
-                    </span>
+                    </Badge>
                   </div>
 
                   {/* WhatsApp Messages */}
@@ -1326,13 +1379,15 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
                   {/* Internal Team Notes */}
                   {activeChat.internalNotes?.map((note) => (
-                    <div key={note.id} className="mx-auto my-2 w-full max-w-lg rounded-lg border border-amber-500/30 bg-amber-50/70 dark:bg-amber-950/30 p-3 text-foreground shadow-2xs text-xs">
-                      <div className="flex items-center justify-between mb-1 font-semibold text-[11px] text-amber-900 dark:text-amber-300">
-                        <span>🔒 Internal note · Team only</span>
-                        <span className="font-normal text-[10px] text-amber-800 dark:text-amber-400">{note.author} · {note.time}</span>
+                    <Alert key={note.id} className="mx-auto my-2 w-full max-w-lg border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 shadow-2xs">
+                      <div className="flex items-center justify-between font-semibold text-[11px] text-amber-800 dark:text-amber-300 mb-1">
+                        <span className="flex items-center gap-1.5"><Lock className="size-3" /> Internal note · Team only</span>
+                        <span className="font-normal text-[10px] text-amber-700 dark:text-amber-400">{note.author} · {note.time}</span>
                       </div>
-                      <p className="whitespace-pre-wrap leading-relaxed">{note.text}</p>
-                    </div>
+                      <AlertDescription className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                        {note.text}
+                      </AlertDescription>
+                    </Alert>
                   ))}
                 </MessageScrollerContent>
               </MessageScrollerViewport>
@@ -1341,41 +1396,29 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
           </MessageScrollerProvider>
 
           {/* WhatsApp Composer */}
-          <div className="border-t border-border bg-card px-4 py-2.5 shrink-0 flex flex-col gap-2">
+          <div className="border-t border-border bg-card p-3 shrink-0 flex flex-col gap-2.5">
             {/* Top mode bar & 24hr window status */}
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={composerMode === "reply" ? "default" : "secondary"}
-                  onClick={() => setComposerMode("reply")}
-                  className="rounded-full h-7 px-3 text-xs"
-                >
-                  Reply
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={composerMode === "template" ? "default" : "secondary"}
-                  onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("template"); }}
-                  className="rounded-full h-7 px-3 text-xs"
-                >
-                  Template
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={composerMode === "note" ? "default" : "secondary"}
-                  onClick={() => { setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); setComposerMode("note"); }}
-                  className={cn("rounded-full h-7 px-3 text-xs", composerMode === "note" && "bg-amber-600 hover:bg-amber-700 text-white")}
-                >
-                  Internal note
-                </Button>
-              </div>
+              <Tabs
+                value={composerMode}
+                onValueChange={(val) => {
+                  if (val === "template" || val === "note") {
+                    setSavedReplyOpen(false);
+                    setEmojiOpen(false);
+                    selectAttachment(null);
+                  }
+                  setComposerMode(val as "reply" | "template" | "note");
+                }}
+              >
+                <TabsList className="h-8 bg-muted/60 p-0.5">
+                  <TabsTrigger value="reply" className="text-xs h-7 px-3">Reply</TabsTrigger>
+                  <TabsTrigger value="template" className="text-xs h-7 px-3">Template</TabsTrigger>
+                  <TabsTrigger value="note" className="text-xs h-7 px-3">Internal note</TabsTrigger>
+                </TabsList>
+              </Tabs>
 
               {composerMode === "reply" && replyAllowed && activeNumber && (
-                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Clock3 className="size-3 text-primary" />
                   <span>
                     {isTwilioSender
@@ -1390,14 +1433,14 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
             {/* Warnings when reply not permitted */}
             {!replyAllowed && composerMode !== "note" && (
-              <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-2.5 text-xs text-amber-900 dark:text-amber-200">
+              <Alert className="border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 py-2 px-3 flex items-center justify-between">
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <AlertCircle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <span className="leading-tight">
+                  <AlertDescription className="text-xs text-amber-800 dark:text-amber-300 font-medium">
                     {consentStatus === "opted_out"
                       ? "Customer opted out of WhatsApp messages."
                       : "WhatsApp opt-in is not recorded yet. Record opt-in to enable sending."}
-                  </span>
+                  </AlertDescription>
                 </div>
                 {consentStatus !== "opted_out" && (
                   <Button
@@ -1406,11 +1449,11 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     className="h-7 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 shadow-xs shrink-0"
                     onClick={() => void updateConsent("opted_in")}
                   >
-                    <CheckCircle className="size-3.5 mr-1" />
+                    <CheckCircle className="size-3.5 mr-1.5" />
                     Record Opt-in
                   </Button>
                 )}
-              </div>
+              </Alert>
             )}
 
             {/* Attachment Preview Box */}
@@ -1424,7 +1467,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
               />
             )}
             {composerMode === "reply" && attachment && (
-              <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-2">
+              <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 p-2">
                 {attachmentPreview ? (
                   <Image src={attachmentPreview} alt="Attachment preview" width={48} height={48} unoptimized className="size-12 rounded object-cover" />
                 ) : (
@@ -1500,7 +1543,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   <Button
                     onClick={() => void sendTemplateMessage()}
                     disabled={sending || !selectedTemplate || !replyAllowed || !activeNumber || !activeSenderEligible || templateParameters.length !== selectedTemplateParameterCount || templateParameters.some((value) => !value.trim())}
-                    className="rounded-full px-5 text-xs font-semibold"
+                    className="rounded-lg px-4 text-xs font-semibold"
                   >
                     {sending ? "Sending…" : "Send template"}
                   </Button>
@@ -1508,18 +1551,36 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
               </div>
             ) : (
               /* Reply / Note Main Bar */
-              <div className="flex items-end gap-2">
+              <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 shadow-2xs focus-within:ring-1 focus-within:ring-ring transition-all">
                 {/* Left WhatsApp Icons */}
-                <div className="flex items-center gap-0.5 pb-1 text-muted-foreground">
-                  <IconButton label="Emoji" onClick={() => setEmojiOpen((open) => !open)}>
-                    <Smile className="size-5" />
-                  </IconButton>
-                  <IconButton label="Attach file" onClick={() => attachmentInput.current?.click()}>
-                    <Paperclip className="size-5" />
-                  </IconButton>
-                  <IconButton label="Saved replies" onClick={() => { setEmojiOpen(false); setSavedReplyOpen((open) => !open); }}>
-                    <Sparkles className="size-5" />
-                  </IconButton>
+                <div className="flex items-center gap-0.5 pb-0.5 text-muted-foreground">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                    onClick={() => setEmojiOpen((open) => !open)}
+                    aria-label="Emoji"
+                  >
+                    <Smile className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                    onClick={() => attachmentInput.current?.click()}
+                    aria-label="Attach file"
+                  >
+                    <Paperclip className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
+                    onClick={() => { setEmojiOpen(false); setSavedReplyOpen((open) => !open); }}
+                    aria-label="Saved replies"
+                  >
+                    <Sparkles className="size-4" />
+                  </Button>
                 </div>
 
                 {/* Textarea Input */}
@@ -1559,7 +1620,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                         : "Type a message"
                     }
                     rows={1}
-                    className="w-full resize-none rounded-lg bg-muted/40 px-3.5 py-2.5 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground border border-border min-h-[42px] max-h-32"
+                    className="w-full resize-none rounded-lg bg-transparent px-3 py-2 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground border-0 shadow-none focus-visible:ring-0 min-h-[38px] max-h-32"
                   />
 
                   {/* Emoji Picker Popup */}
@@ -1570,7 +1631,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                           key={emoji}
                           type="button"
                           onClick={() => { setDraft((c) => `${c}${emoji}`); setEmojiOpen(false); draftInputRef.current?.focus(); }}
-                          className="size-9 rounded-lg text-lg hover:bg-muted flex items-center justify-center"
+                          className="size-9 rounded-lg text-lg hover:bg-muted flex items-center justify-center cursor-pointer"
                         >
                           {emoji}
                         </button>
@@ -1601,7 +1662,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   )}
                 </div>
 
-                {/* Circular WhatsApp Send Button */}
+                {/* Shadcn Send Button */}
                 <Button
                   type="button"
                   size="icon"
@@ -1613,7 +1674,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   }
                   onClick={() => (composerMode === "note" ? void saveInternalNote() : void sendMessage())}
                   className={cn(
-                    "size-10 rounded-full shrink-0 shadow-xs",
+                    "size-9 rounded-lg shrink-0 shadow-xs transition-transform active:scale-95",
                     composerMode === "note"
                       ? "bg-amber-600 hover:bg-amber-700 text-white"
                       : "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -1628,25 +1689,25 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
         </section>
       ) : (
         /* WhatsApp Web Empty Intro Screen (when no chat is active) */
-        <section className="hidden md:flex flex-1 flex-col items-center justify-center bg-muted/30 p-8 text-center border-b-[6px] border-primary select-none h-full">
+        <section className="hidden md:flex flex-1 flex-col items-center justify-center bg-muted/20 p-8 text-center border-b-[6px] border-primary select-none h-full">
           <div className="max-w-md flex flex-col items-center">
-            <div className="size-24 rounded-full bg-primary/10 flex items-center justify-center mb-6 text-primary">
-              <MessageSquare className="size-12" />
+            <div className="size-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary shadow-2xs">
+              <MessageSquare className="size-10" />
             </div>
-            <h2 className="text-[28px] font-light text-foreground tracking-tight">WhatsApp CRM Web</h2>
-            <p className="text-[14px] text-muted-foreground mt-3 leading-relaxed">
+            <h2 className="text-2xl font-bold text-foreground tracking-tight">WhatsApp CRM Web</h2>
+            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               Send and receive WhatsApp messages with your customers across connected Twilio numbers with unified timeline storage.
             </p>
             <div className="mt-6 flex items-center gap-3">
-              <Button asChild className="text-xs font-semibold px-4 py-2 rounded-full shadow-xs">
+              <Button asChild size="sm" className="text-xs font-semibold px-4 rounded-lg shadow-xs">
                 <Link href="/customers?new=1">
-                  <Plus className="size-4 mr-1.5" /> Add customer
+                  <Plus className="size-3.5 mr-1.5" /> Add customer
                 </Link>
               </Button>
               {adminCanPurgeMedia && (
-                <Button asChild variant="outline" className="border-border text-foreground bg-card hover:bg-muted text-xs font-semibold px-4 py-2 rounded-full">
+                <Button asChild variant="outline" size="sm" className="border-border text-foreground bg-card hover:bg-muted text-xs font-semibold px-4 rounded-lg">
                   <Link href="/admin/numbers">
-                    <Smartphone className="size-4 mr-1.5" /> Manage numbers
+                    <Smartphone className="size-3.5 mr-1.5" /> Manage numbers
                   </Link>
                 </Button>
               )}
@@ -1944,38 +2005,50 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
 function RailLink({ children, label, active = false, href }: { children: React.ReactNode; label: string; active?: boolean; href: string }) {
   return (
-    <Link
-      href={href}
-      aria-label={label}
-      title={label}
-      className={cn(
-        "relative flex size-10 items-center justify-center rounded-xl transition-colors",
-        active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-      )}
-    >
-      {children}
-      <span className="sr-only">{label}</span>
-    </Link>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href={href}
+          aria-label={label}
+          className={cn(
+            "relative flex size-10 items-center justify-center rounded-xl transition-all duration-150",
+            active ? "bg-primary text-primary-foreground shadow-xs font-semibold" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          {children}
+          <span className="sr-only">{label}</span>
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={10} className="font-medium text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
 function RailButton({ children, label, active = false, onClick }: { children: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
   return (
-    <Button
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        "relative flex size-10 items-center justify-center rounded-xl transition-colors",
-        active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
-      )}
-      type="button"
-      variant="ghost"
-      size="icon"
-    >
-      {children}
-      <span className="sr-only">{label}</span>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          aria-label={label}
+          onClick={onClick}
+          className={cn(
+            "relative size-10 rounded-xl transition-all duration-150",
+            active ? "bg-primary text-primary-foreground shadow-xs" : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+          type="button"
+          variant="ghost"
+          size="icon"
+        >
+          {children}
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="right" sideOffset={10} className="font-medium text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

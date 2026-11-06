@@ -14,3 +14,4 @@ END $$;
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "ChannelNumber_workspaceId_assignedUserId_idx" ON "ChannelNumber"("workspaceId", "assignedUserId");
+
