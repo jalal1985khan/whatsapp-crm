@@ -317,6 +317,20 @@ export async function processTwilioInboundMessage(params: Record<string, string>
       );
     }
 
+    // Auto-record opt-in on customer-initiated inbound communication (unless customer explicitly opted out)
+    await client.query(
+      `UPDATE "Contact"
+       SET "suppressionState" = 'OPTED_IN', "suppressedAt" = NULL, "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "workspaceId" = $1 AND "id" = $2 AND ("suppressionState" IS NULL OR "suppressionState" = 'UNKNOWN')`,
+      [workspaceId, contactId],
+    );
+    await client.query(
+      `INSERT INTO "ConsentRecord" ("id", "workspaceId", "contactId", "channel", "scope", "status", "evidenceSource", "wordingVersion", "capturedAt")
+       VALUES ($1, $2, $3, 'WHATSAPP', 'WHATSAPP_MESSAGING', 'OPTED_IN', 'Inbound WhatsApp message', 'v1.0', CURRENT_TIMESTAMP)
+       ON CONFLICT ("id") DO NOTHING`,
+      [randomUUID(), workspaceId, contactId],
+    );
+
     // 3. Find or Create Conversation
     const convResult = await client.query<Row>(
       `INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "unreadCount", "lastMessageAt", "updatedAt")

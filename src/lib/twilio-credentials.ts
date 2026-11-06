@@ -74,28 +74,52 @@ export async function getTwilioCredentialsForNumber(numberId: string): Promise<T
   return { accountSid, authToken, fromE164, accountId: row.taId ? String(row.taId) : undefined };
 }
 
+export async function getTwilioAuthTokensByAccountSid(accountSid: string): Promise<string[]> {
+  const tokens = new Set<string>();
+
+  if (process.env.TWILIO_AUTH_TOKEN) {
+    if (!process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_ACCOUNT_SID === accountSid) {
+      tokens.add(process.env.TWILIO_AUTH_TOKEN);
+    }
+  }
+
+  if (process.env.DATABASE_URL) {
+    try {
+      const pool = getPostgresPool();
+      const workspaceId = getWorkspaceId();
+
+      const accountResult = await pool.query<Row>(
+        `SELECT "authTokenEncrypted" FROM "TwilioAccount" WHERE "workspaceId" = $1 AND "accountSid" = $2`,
+        [workspaceId, accountSid],
+      );
+      for (const row of accountResult.rows) {
+        if (row.authTokenEncrypted) {
+          try {
+            tokens.add(decryptTwilioAuthToken(String(row.authTokenEncrypted)));
+          } catch {}
+        }
+      }
+
+      const numberResult = await pool.query<Row>(
+        `SELECT "twilioAuthTokenEncrypted" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "twilioAccountSid" = $2`,
+        [workspaceId, accountSid],
+      );
+      for (const row of numberResult.rows) {
+        if (row.twilioAuthTokenEncrypted) {
+          try {
+            tokens.add(decryptTwilioAuthToken(String(row.twilioAuthTokenEncrypted)));
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  return Array.from(tokens);
+}
+
 export async function getTwilioCredentialsByAccountSid(accountSid: string): Promise<string | null> {
-  if (!process.env.DATABASE_URL) {
-    if (process.env.TWILIO_ACCOUNT_SID === accountSid) return process.env.TWILIO_AUTH_TOKEN || null;
-    return null;
-  }
-
-  const pool = getPostgresPool();
-  const result = await pool.query<Row>(
-    `SELECT "authTokenEncrypted" FROM "TwilioAccount" WHERE "workspaceId" = $1 AND "accountSid" = $2 LIMIT 1`,
-    [getWorkspaceId(), accountSid],
-  );
-
-  const row = result.rows[0];
-  if (row?.authTokenEncrypted) {
-    return decryptTwilioAuthToken(String(row.authTokenEncrypted));
-  }
-
-  if (process.env.TWILIO_ACCOUNT_SID === accountSid) {
-    return process.env.TWILIO_AUTH_TOKEN || null;
-  }
-
-  return null;
+  const tokens = await getTwilioAuthTokensByAccountSid(accountSid);
+  return tokens[0] ?? null;
 }
 
 export async function saveTwilioAccount(input: {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processTwilioInboundMessage, processTwilioStatusCallback, verifyTwilioSignature } from "@/lib/twilio-whatsapp";
-import { getTwilioCredentialsByAccountSid } from "@/lib/twilio-credentials";
+import { getTwilioAuthTokensByAccountSid } from "@/lib/twilio-credentials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +10,36 @@ function emptyTwiML() {
     status: 200,
     headers: { "Content-Type": "text/xml" },
   });
+}
+
+function getCandidateWebhookUrls(request: NextRequest): string[] {
+  const urls = new Set<string>();
+  const pathname = request.nextUrl.pathname;
+  const search = request.nextUrl.search;
+
+  urls.add(request.nextUrl.toString());
+
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+  const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
+
+  if (host) {
+    urls.add(`${forwardedProto}://${host}${pathname}${search}`);
+    urls.add(`https://${host}${pathname}${search}`);
+    urls.add(`http://${host}${pathname}${search}`);
+
+    const altPath = pathname.endsWith("/") ? pathname.slice(0, -1) : `${pathname}/`;
+    urls.add(`${forwardedProto}://${host}${altPath}${search}`);
+    urls.add(`https://${host}${altPath}${search}`);
+  }
+
+  if (process.env.APP_BASE_URL) {
+    const base = process.env.APP_BASE_URL.replace(/\/$/, "");
+    urls.add(`${base}${pathname}${search}`);
+    const altPath = pathname.endsWith("/") ? pathname.slice(0, -1) : `${pathname}/`;
+    urls.add(`${base}${altPath}${search}`);
+  }
+
+  return Array.from(urls);
 }
 
 export async function GET() {
@@ -47,12 +77,21 @@ export async function POST(request: NextRequest) {
   const twilioSignature = request.headers.get("x-twilio-signature");
   const accountSid = params.AccountSid;
   if (twilioSignature && accountSid) {
-    const authToken = await getTwilioCredentialsByAccountSid(accountSid);
-    if (authToken) {
-      const fullUrl = request.nextUrl.toString();
-      const isValid = verifyTwilioSignature(fullUrl, params, twilioSignature, authToken);
+    const authTokens = await getTwilioAuthTokensByAccountSid(accountSid);
+    if (authTokens.length > 0) {
+      const candidateUrls = getCandidateWebhookUrls(request);
+      let isValid = false;
+      for (const token of authTokens) {
+        for (const url of candidateUrls) {
+          if (verifyTwilioSignature(url, params, twilioSignature, token)) {
+            isValid = true;
+            break;
+          }
+        }
+        if (isValid) break;
+      }
       if (!isValid) {
-        console.warn("Twilio signature validation failed for AccountSid:", accountSid);
+        console.warn("Twilio signature validation failed for AccountSid:", accountSid, "tested URLs:", candidateUrls);
       }
     }
   }

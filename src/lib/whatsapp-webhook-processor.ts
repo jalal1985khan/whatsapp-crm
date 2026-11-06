@@ -50,6 +50,20 @@ async function applyMessage(client: PoolClient, item: WebhookEventWork) {
   await client.query(`INSERT INTO "ContactIdentifier" ("id", "workspaceId", "contactId", "type", "normalizedValue", "verified", "source")
     VALUES ($1,$2,$3,'PHONE',$4,false,'WHATSAPP_WEBHOOK') ON CONFLICT ("contactId", "type", "normalizedValue") DO NOTHING`, [randomUUID(), item.workspaceId, contactId, sender]);
 
+  // Auto-record opt-in on customer-initiated inbound communication (unless customer explicitly opted out)
+  await client.query(
+    `UPDATE "Contact"
+     SET "suppressionState" = 'OPTED_IN', "suppressedAt" = NULL, "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "workspaceId" = $1 AND "id" = $2 AND ("suppressionState" IS NULL OR "suppressionState" = 'UNKNOWN')`,
+    [item.workspaceId, contactId],
+  );
+  await client.query(
+    `INSERT INTO "ConsentRecord" ("id", "workspaceId", "contactId", "channel", "scope", "status", "evidenceSource", "wordingVersion", "capturedAt")
+     VALUES ($1, $2, $3, 'WHATSAPP', 'WHATSAPP_MESSAGING', 'OPTED_IN', 'Inbound WhatsApp message', 'v1.0', CURRENT_TIMESTAMP)
+     ON CONFLICT ("id") DO NOTHING`,
+    [randomUUID(), item.workspaceId, contactId],
+  );
+
   const sentAt = timestamp(message.timestamp);
   const expiresAt = new Date(sentAt.getTime() + 24 * 60 * 60 * 1000);
   const conversationResult = await client.query<Row>(`INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "unreadCount", "lastMessageAt", "serviceWindowExpiresAt", "updatedAt")
