@@ -754,7 +754,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
         const refreshedChat = refreshed.ok && Array.isArray(snapshot.chats) ? snapshot.chats.find((chat: Chat) => chat.id === activeId) : null;
         if (refreshedChat) setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, ...refreshedChat, detailLoaded: true, matchesFilter: chat.matchesFilter } : chat));
       }
-      setNotice(data.retry?.needsReview ? "The prior retry did not finish recording its outcome. Check the message status before sending again." : data.retry?.duplicate ? "This failed message already has a retry attempt." : `A new message was sent from ${activeNumber.label}; delivery status will update from Meta.`);
+      setNotice(data.retry?.needsReview ? "The prior retry did not finish recording its outcome. Check the message status before sending again." : data.retry?.duplicate ? "This failed message already has a retry attempt." : `A new message was sent from ${activeNumber.label}; delivery status will update shortly.`);
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Could not retry this message."); }
     finally { setSending(false); }
   }

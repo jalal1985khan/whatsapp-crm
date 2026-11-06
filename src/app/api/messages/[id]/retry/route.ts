@@ -1,37 +1,89 @@
 import { NextResponse } from "next/server";
-import { getSession, mfaAdminActionMessage, requireMfaForAdminChange } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { retryConfirmedMessage } from "@/lib/meta-whatsapp";
 import { getPostgresPool, getWorkspaceId } from "@/lib/postgres-pool";
-import { getScopedInboxSnapshot } from "@/lib/inbox-access";
+import { canSendOnConversation, getScopedInboxSnapshot } from "@/lib/inbox-access";
+import { getTwilioCredentialsForNumber } from "@/lib/twilio-credentials";
+import { sendTwilioTextMessage } from "@/lib/twilio-whatsapp";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Sign in to retry a failed message." }, { status: 401 });
-  if (session.role !== "Owner" && session.role !== "Admin") return NextResponse.json({ error: "Administrator access is required to resend a message." }, { status: 403 });
-  const gate = await requireMfaForAdminChange();
-  if (!gate.session) return NextResponse.json({ error: "Administrator sign-in required." }, { status: 401 });
-  if (gate.needsMfa) return NextResponse.json({ error: mfaAdminActionMessage("retrying a failed WhatsApp message") }, { status: 403 });
-  if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Message retry requires PostgreSQL and an authorized Meta Cloud API connection." }, { status: 503 });
+
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json({ error: "Message retry requires database storage." }, { status: 503 });
+  }
+
   const { id } = await context.params;
-  const body = await request.json().catch(() => null) as { senderNumberId?: string } | null;
-  if (!body?.senderNumberId || typeof body.senderNumberId !== "string") return NextResponse.json({ error: "Choose an active WhatsApp sender number." }, { status: 400 });
-  const sender = await getPostgresPool().query(`SELECT 1 FROM "ChannelNumber" n WHERE n."workspaceId"=$1 AND n."id"=$2 AND n."state"='ACTIVE' AND n."approvedByUserId" IS NOT NULL AND n."metaPhoneNumberId" IS NOT NULL
-    AND ((n."whatsappConnectionId" IS NULL AND $3::boolean) OR EXISTS (SELECT 1 FROM "WhatsAppConnection" wc WHERE wc."id"=n."whatsappConnectionId" AND wc."workspaceId"=n."workspaceId" AND wc."status"='ACTIVE' AND (wc."tokenExpiresAt" IS NULL OR wc."tokenExpiresAt">CURRENT_TIMESTAMP)))`, [getWorkspaceId(), body.senderNumberId, Boolean(process.env.META_ACCESS_TOKEN)]);
-  if (!sender.rows.length) return NextResponse.json({ error: "Choose an active, approved WhatsApp number with a current Meta authorization." }, { status: 400 });
+  const body = (await request.json().catch(() => null)) as { senderNumberId?: string } | null;
+  if (!body?.senderNumberId || typeof body.senderNumberId !== "string") {
+    return NextResponse.json({ error: "Choose an active WhatsApp sender number." }, { status: 400 });
+  }
+
+  const pool = getPostgresPool();
+  const workspaceId = getWorkspaceId();
+
+  // 1. Fetch message to retry
+  const messageRes = await pool.query<{ id: string; contactId: string; textBody: string; messageType: string; status: string }>(
+    `SELECT "id", "contactId", "textBody", "messageType", "status" FROM "Message" WHERE "workspaceId" = $1 AND "id" = $2`,
+    [workspaceId, id]
+  );
+  const message = messageRes.rows[0];
+  if (!message) return NextResponse.json({ error: "Message not found." }, { status: 404 });
+
+  // 2. Validate agent permission on conversation
+  if (!(await canSendOnConversation(session, message.contactId, body.senderNumberId))) {
+    return NextResponse.json({ error: "You do not have permission to send on this conversation." }, { status: 403 });
+  }
+
+  // 3. Verify sender number is active
+  const senderNumberRes = await pool.query<{ id: string; provider: string; state: string }>(
+    `SELECT "id", "provider", "state" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "id" = $2 AND "state" = 'ACTIVE' LIMIT 1`,
+    [workspaceId, body.senderNumberId]
+  );
+  if (!senderNumberRes.rows.length) {
+    return NextResponse.json({ error: "Choose an active, approved WhatsApp number." }, { status: 400 });
+  }
+
+  const senderNumber = senderNumberRes.rows[0];
+
   const forwarded = request.headers.get("x-forwarded-for")?.split(",").map((item) => item.trim()).filter(Boolean);
   const sourceIp = request.headers.get("x-real-ip")?.trim() || forwarded?.at(-1);
+
   try {
-    const message = await getPostgresPool().query<{ contactId: string }>(`SELECT "contactId" FROM "Message" WHERE "workspaceId"=$1 AND "id"=$2`, [getWorkspaceId(), id]);
-    if (!message.rows[0]) return NextResponse.json({ error: "Message not found." }, { status: 404 });
-    const retry = await retryConfirmedMessage({ messageId: id, senderNumberId: body.senderNumberId, actorUserId: session.userId, sourceIp, userAgent: request.headers.get("user-agent") ?? undefined });
-    const snapshot = await getScopedInboxSnapshot(session, [message.rows[0].contactId]);
-    const source = snapshot.chats.find((chat) => chat.messages.some((item) => item.id === id));
-    return NextResponse.json({ retry, chat: source }, { headers: { "Cache-Control": "no-store" } });
+    let retryResult: { id: string; status?: string; duplicate?: boolean; needsReview?: boolean } = { id };
+
+    // Check if Twilio number
+    const twilioCreds = await getTwilioCredentialsForNumber(body.senderNumberId);
+    if (twilioCreds || senderNumber.provider === "TWILIO") {
+      const retryKey = `manual-retry:${id}:${Date.now()}`;
+      const sent = await sendTwilioTextMessage({
+        contactId: message.contactId,
+        senderNumberId: body.senderNumberId,
+        text: message.textBody || "",
+        idempotencyKey: retryKey,
+      });
+      retryResult = { id: sent.id, status: sent.status, duplicate: sent.duplicate };
+    } else {
+      // Meta Cloud API retry
+      const metaRetry = await retryConfirmedMessage({
+        messageId: id,
+        senderNumberId: body.senderNumberId,
+        actorUserId: session.userId,
+        sourceIp,
+        userAgent: request.headers.get("user-agent") ?? undefined,
+      });
+      retryResult = metaRetry;
+    }
+
+    const snapshot = await getScopedInboxSnapshot(session, [message.contactId]);
+    const sourceChat = snapshot.chats.find((chat) => chat.id === message.contactId);
+    return NextResponse.json({ retry: retryResult, chat: sourceChat }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not retry this message.";
-    const conflict = /already|unknown|reconciled|processing/i.test(message);
-    return NextResponse.json({ error: message }, { status: conflict ? 409 : 400 });
+    const errMsg = error instanceof Error ? error.message : "Could not retry this message.";
+    const conflict = /already|unknown|reconciled|processing/i.test(errMsg);
+    return NextResponse.json({ error: errMsg }, { status: conflict ? 409 : 400 });
   }
 }
