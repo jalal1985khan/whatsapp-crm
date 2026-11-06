@@ -18,6 +18,8 @@ export type ChannelNumber = {
   displayName?: string;
   qualitySignal?: string;
   allowedTeamIds?: string[];
+  assignedUserId?: string | null;
+  assignedUserName?: string | null;
   routingPriority?: number;
   lastStatusEventAt?: string;
   metaConnectionStatus?: "CONNECTED" | "EXPIRING" | "EXPIRED" | "INACTIVE" | "UNLINKED" | "CONNECTION_MISSING" | "SERVER_TOKEN";
@@ -162,7 +164,7 @@ export async function getCrmSnapshot(contactIds?: string[]) {
   const store = await readStore(contactIds);
   return {
     chats: store.chats,
-    numbers: [...store.numbers].sort((a, b) => (a.routingPriority ?? store.numbers.indexOf(a) * 100) - (b.routingPriority ?? store.numbers.indexOf(b) * 100)).map(({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds, routingPriority, lastStatusEventAt, provider, twilioAccountId, twilioAccountSid, twilioAccountName }) => ({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds: allowedTeamIds ?? [], routingPriority, lastStatusEventAt, provider, twilioAccountId, twilioAccountSid, twilioAccountName })),
+    numbers: [...store.numbers].sort((a, b) => (a.routingPriority ?? store.numbers.indexOf(a) * 100) - (b.routingPriority ?? store.numbers.indexOf(b) * 100)).map(({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds, assignedUserId, assignedUserName, routingPriority, lastStatusEventAt, provider, twilioAccountId, twilioAccountSid, twilioAccountName }) => ({ id, label, number, state, metaPhoneNumberId, metaWabaId, displayName, qualitySignal, allowedTeamIds: allowedTeamIds ?? [], assignedUserId: assignedUserId ?? null, assignedUserName: assignedUserName ?? null, routingPriority, lastStatusEventAt, provider, twilioAccountId, twilioAccountSid, twilioAccountName })),
     team: store.users.filter((user) => user.active).map(({ id, name, email, role }) => ({ id, name, email, role })),
   };
 }
@@ -351,7 +353,7 @@ export async function createChannelNumber(label: string, number: string, metaPho
   });
 }
 
-export async function updateChannelNumber(id: string, action: "approve" | "pause" | "activate" | "archive" | "rename" | "set_allowed_teams", label?: string, allowedTeamIds?: string[]) {
+export async function updateChannelNumber(id: string, action: "approve" | "pause" | "activate" | "archive" | "rename" | "set_allowed_teams" | "assign_user", label?: string, allowedTeamIds?: string[], assignedUserId?: string | null) {
   return mutateStore((store) => {
     const channel = store.numbers.find((item) => item.id === id);
     if (!channel) throw new Error("Number not found.");
@@ -379,6 +381,24 @@ export async function updateChannelNumber(id: string, action: "approve" | "pause
       channel.label = cleanLabel;
     }
     if (action === "set_allowed_teams") channel.allowedTeamIds = [...new Set(allowedTeamIds ?? [])];
+    if (action === "assign_user") {
+      if (assignedUserId) {
+        const user = store.users.find((u) => u.id === assignedUserId);
+        if (!user) throw new Error("Agent not found.");
+        // Exclusivity: clear this user from any other number
+        for (const num of store.numbers) {
+          if (num.assignedUserId === assignedUserId && num.id !== id) {
+            num.assignedUserId = null;
+            num.assignedUserName = null;
+          }
+        }
+        channel.assignedUserId = user.id;
+        channel.assignedUserName = user.name;
+      } else {
+        channel.assignedUserId = null;
+        channel.assignedUserName = null;
+      }
+    }
     return channel;
   });
 }

@@ -19,11 +19,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 type TeamMember = { id: string; name: string; email: string; role: string; active?: boolean };
 type TeamRecord = { id: string; name: string; members: { id: string; name: string; email: string; role: string }[] };
+type NumberChoice = { id: string; label: string; number: string; state: string; assignedUserId?: string | null; assignedUserName?: string | null };
 
 export function TeamAdmin({ initialTeam, currentUserId }: { initialTeam: TeamMember[]; currentUserId: string }) {
   const router = useRouter();
   const [team, setTeam] = useState(initialTeam);
   const [groups, setGroups] = useState<TeamRecord[]>([]);
+  const [numbers, setNumbers] = useState<NumberChoice[]>([]);
   const [groupName, setGroupName] = useState("");
   const [groupMembers, setGroupMembers] = useState<string[]>([]);
   const [editingGroupId, setEditingGroupId] = useState("");
@@ -37,15 +39,59 @@ export function TeamAdmin({ initialTeam, currentUserId }: { initialTeam: TeamMem
   const [recoveryReason, setRecoveryReason] = useState("");
   const [identityVerified, setIdentityVerified] = useState(false);
 
+  const refreshData = () => {
+    return Promise.all([
+      fetch("/api/team", { cache: "no-store" }),
+      fetch("/api/teams", { cache: "no-store" }),
+      fetch("/api/numbers", { cache: "no-store" }),
+    ]).then(async ([membersResponse, groupsResponse, numbersResponse]) => {
+      const membersData = await membersResponse.json();
+      const groupsData = await groupsResponse.json();
+      const numbersData = await numbersResponse.json();
+      if (Array.isArray(membersData.team)) setTeam(membersData.team);
+      if (Array.isArray(groupsData.teams)) setGroups(groupsData.teams);
+      if (Array.isArray(numbersData.numbers)) setNumbers(numbersData.numbers);
+    }).catch(() => undefined);
+  };
+
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([fetch("/api/team", { cache: "no-store" }), fetch("/api/teams", { cache: "no-store" })]).then(async ([membersResponse, groupsResponse]) => {
-      const membersData = await membersResponse.json(); const groupsData = await groupsResponse.json();
-      if (!cancelled && Array.isArray(membersData.team)) setTeam(membersData.team);
-      if (!cancelled && Array.isArray(groupsData.teams)) setGroups(groupsData.teams);
-    }).catch(() => undefined);
+    void refreshData();
     return () => { cancelled = true; };
   }, []);
+
+  async function assignAgentNumber(member: TeamMember, newNumberId: string | null) {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const currentAssigned = numbers.find((n) => n.assignedUserId === member.id);
+      if (newNumberId) {
+        const response = await fetch(`/api/numbers/${newNumberId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "assign_user", assignedUserId: member.id }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not assign WhatsApp number.");
+        if (data.numbers) setNumbers(data.numbers);
+        const assignedNum = data.numbers?.find((n: NumberChoice) => n.id === newNumberId) || numbers.find((n) => n.id === newNumberId);
+        setNotice(`Assigned ${assignedNum?.label || "WhatsApp number"} exclusively to ${member.name}.`);
+      } else if (currentAssigned) {
+        const response = await fetch(`/api/numbers/${currentAssigned.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "assign_user", assignedUserId: null }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not unassign WhatsApp number.");
+        if (data.numbers) setNumbers(data.numbers);
+        setNotice(`Unassigned WhatsApp number from ${member.name}; returned to pool.`);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not update WhatsApp number assignment.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
@@ -201,6 +247,25 @@ export function TeamAdmin({ initialTeam, currentUserId }: { initialTeam: TeamMem
                 <Badge variant={member.active === false ? "destructive" : member.role === "Owner" ? "default" : "outline"}>
                   {member.active === false ? "Inactive" : member.role}
                 </Badge>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-[10px] text-muted-foreground">WhatsApp:</span>
+                  <SelectControl
+                    aria-label={`Assigned WhatsApp number for ${member.name}`}
+                    value={numbers.find((n) => n.assignedUserId === member.id && n.state === "Active")?.id ?? ""}
+                    disabled={busy || member.active === false}
+                    onChange={(event) => void assignAgentNumber(member, event.target.value || null)}
+                    className="h-9 rounded-md border bg-card px-2 text-xs max-w-[210px]"
+                  >
+                    <option value="">Pool (Unassigned)</option>
+                    {numbers
+                      .filter((n) => n.state === "Active" && (!n.assignedUserId || n.assignedUserId === member.id))
+                      .map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {n.label} ({n.number})
+                        </option>
+                      ))}
+                  </SelectControl>
+                </div>
                 {member.role !== "Owner" && (
                   <>
                     <SelectControl aria-label={`Role for ${member.name}`} value={member.role} disabled={busy || member.active === false} onChange={(event) => void updateMember(member, "change_role", event.target.value)} className="h-9 rounded-md border bg-card px-2 text-xs">

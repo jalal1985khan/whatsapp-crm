@@ -60,8 +60,9 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
   const userResult = await client.query<Row>(`SELECT u."id", u."email", u."passwordHash", u."name", u."active", wu."role"
       FROM "WorkspaceUser" wu JOIN "User" u ON u."id" = wu."userId"
       WHERE wu."workspaceId" = $1 ORDER BY u."createdAt"`, [workspaceId]);
-  const numberResult = await client.query<Row>(`SELECT n."id", n."label", n."e164Number", n."displayName", n."metaPhoneNumberId", n."metaWabaId", n."approvedByUserId", n."qualitySignal", n."allowedTeamIds", n."routingPriority", n."lastStatusEventAt", n."state", n."createdAt", n."whatsappConnectionId", n."provider", n."twilioAccountId", n."twilioAccountSid", ta."friendlyName" AS "twilioAccountName", ta."accountSid" AS "taAccountSid", wc."status" AS "metaConnectionStatus", wc."tokenExpiresAt" AS "metaTokenExpiresAt"
+  const numberResult = await client.query<Row>(`SELECT n."id", n."label", n."e164Number", n."displayName", n."metaPhoneNumberId", n."metaWabaId", n."approvedByUserId", n."qualitySignal", n."allowedTeamIds", n."assignedUserId", u."name" AS "assignedUserName", n."routingPriority", n."lastStatusEventAt", n."state", n."createdAt", n."whatsappConnectionId", n."provider", n."twilioAccountId", n."twilioAccountSid", ta."friendlyName" AS "twilioAccountName", ta."accountSid" AS "taAccountSid", wc."status" AS "metaConnectionStatus", wc."tokenExpiresAt" AS "metaTokenExpiresAt"
       FROM "ChannelNumber" n
+      LEFT JOIN "User" u ON u."id"=n."assignedUserId"
       LEFT JOIN "WhatsAppConnection" wc ON wc."id"=n."whatsappConnectionId" AND wc."workspaceId"=n."workspaceId"
       LEFT JOIN "TwilioAccount" ta ON ta."id"=n."twilioAccountId" AND ta."workspaceId"=n."workspaceId"
       WHERE n."workspaceId" = $1 ORDER BY n."routingPriority", n."createdAt"`, [workspaceId]);
@@ -99,7 +100,7 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
       twilioAccountId: nullableString(row.twilioAccountId),
       twilioAccountSid: nullableString(row.twilioAccountSid || row.taAccountSid),
       twilioAccountName: nullableString(row.twilioAccountName),
-      metaPhoneNumberId: nullableString(row.metaPhoneNumberId), metaWabaId: nullableString(row.metaWabaId), qualitySignal: nullableString(row.qualitySignal), allowedTeamIds: Array.isArray(row.allowedTeamIds) ? row.allowedTeamIds.map(String) : [], routingPriority: Number(row.routingPriority), lastStatusEventAt: row.lastStatusEventAt == null ? undefined : date(row.lastStatusEventAt).toISOString(), metaConnectionStatus: connectionStatus, metaTokenExpiresAt: expiresAt?.toISOString() ?? null, state: String(row.state) === "ACTIVE" && !isApproved ? "Pending approval" : stateFromDb(row.state), createdAt: date(row.createdAt).toISOString(),
+      metaPhoneNumberId: nullableString(row.metaPhoneNumberId), metaWabaId: nullableString(row.metaWabaId), qualitySignal: nullableString(row.qualitySignal), allowedTeamIds: Array.isArray(row.allowedTeamIds) ? row.allowedTeamIds.map(String) : [], assignedUserId: nullableString(row.assignedUserId), assignedUserName: nullableString(row.assignedUserName), routingPriority: Number(row.routingPriority), lastStatusEventAt: row.lastStatusEventAt == null ? undefined : date(row.lastStatusEventAt).toISOString(), metaConnectionStatus: connectionStatus, metaTokenExpiresAt: expiresAt?.toISOString() ?? null, state: String(row.state) === "ACTIVE" && !isApproved ? "Pending approval" : stateFromDb(row.state), createdAt: date(row.createdAt).toISOString(),
     };
   });
   const conversationsByContact = new Map<string, Row[]>();
@@ -204,10 +205,10 @@ async function saveStore(client: PoolClient, workspaceId: string, store: Store, 
   for (const number of store.numbers) {
     const oldNumber = previousNumbers.get(number.id);
     if (oldNumber && JSON.stringify(oldNumber) === JSON.stringify(number)) continue;
-    await client.query(`INSERT INTO "ChannelNumber" ("id", "workspaceId", "label", "e164Number", "metaPhoneNumberId", "metaWabaId", "qualitySignal", "allowedTeamIds", "routingPriority", "state", "createdAt", "updatedAt")
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::"NumberState",$11,CURRENT_TIMESTAMP)
-      ON CONFLICT ("id") DO UPDATE SET "label" = EXCLUDED."label", "e164Number" = EXCLUDED."e164Number", "metaPhoneNumberId" = EXCLUDED."metaPhoneNumberId", "metaWabaId" = EXCLUDED."metaWabaId", "qualitySignal" = EXCLUDED."qualitySignal", "allowedTeamIds" = EXCLUDED."allowedTeamIds", "routingPriority" = EXCLUDED."routingPriority", "state" = EXCLUDED."state", "updatedAt" = CURRENT_TIMESTAMP`,
-    [number.id, workspaceId, number.label, number.number.replace(/[\s()-]/g, ""), number.metaPhoneNumberId ?? null, number.metaWabaId ?? null, number.qualitySignal ?? null, number.allowedTeamIds ?? [], number.routingPriority ?? (store.numbers.indexOf(number) + 1) * 100, stateToDb(number.state), date(number.createdAt)]);
+    await client.query(`INSERT INTO "ChannelNumber" ("id", "workspaceId", "label", "e164Number", "metaPhoneNumberId", "metaWabaId", "qualitySignal", "allowedTeamIds", "assignedUserId", "routingPriority", "state", "createdAt", "updatedAt")
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::"NumberState",$12,CURRENT_TIMESTAMP)
+      ON CONFLICT ("id") DO UPDATE SET "label" = EXCLUDED."label", "e164Number" = EXCLUDED."e164Number", "metaPhoneNumberId" = EXCLUDED."metaPhoneNumberId", "metaWabaId" = EXCLUDED."metaWabaId", "qualitySignal" = EXCLUDED."qualitySignal", "allowedTeamIds" = EXCLUDED."allowedTeamIds", "assignedUserId" = EXCLUDED."assignedUserId", "routingPriority" = EXCLUDED."routingPriority", "state" = EXCLUDED."state", "updatedAt" = CURRENT_TIMESTAMP`,
+    [number.id, workspaceId, number.label, number.number.replace(/[\s()-]/g, ""), number.metaPhoneNumberId ?? null, number.metaWabaId ?? null, number.qualitySignal ?? null, number.allowedTeamIds ?? [], number.assignedUserId ?? null, number.routingPriority ?? (store.numbers.indexOf(number) + 1) * 100, stateToDb(number.state), date(number.createdAt)]);
   }
 
   const previousChats = new Map(previous?.chats.map((chat) => [chat.id, chat]) ?? []);

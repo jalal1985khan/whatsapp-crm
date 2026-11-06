@@ -49,6 +49,8 @@ type NumberItem = {
   metaWabaId?: string;
   qualitySignal?: string;
   allowedTeamIds?: string[];
+  assignedUserId?: string | null;
+  assignedUserName?: string | null;
   routingPriority?: number;
   lastStatusEventAt?: string;
   metaConnectionStatus?:
@@ -131,6 +133,7 @@ export function NumberAdmin({
   const [twilioAccounts, setTwilioAccounts] = useState<TwilioAccountItem[]>(initialTwilioAccounts);
   const [focusTarget, setFocusTarget] = useState<{ type: "number" | "waba"; id: string } | null>(null);
   const [teams, setTeams] = useState<TeamChoice[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ id: string; name: string; role: string }[]>([]);
   const [teamAccessDraft, setTeamAccessDraft] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(initialNumbers.map((item) => [item.id, item.allowedTeamIds ?? []])),
   );
@@ -212,16 +215,34 @@ export function NumberAdmin({
 
   useEffect(() => {
     let disposed = false;
-    void fetch("/api/teams", { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!disposed && Array.isArray(data.teams)) setTeams(data.teams);
-      })
-      .catch(() => {});
+    void Promise.all([
+      fetch("/api/teams", { cache: "no-store" }).then((res) => res.json()),
+      fetch("/api/team", { cache: "no-store" }).then((res) => res.json()),
+    ]).then(([teamsData, teamData]) => {
+      if (!disposed && Array.isArray(teamsData?.teams)) setTeams(teamsData.teams);
+      if (!disposed && Array.isArray(teamData?.team)) setTeamMembers(teamData.team);
+    }).catch(() => {});
     return () => {
       disposed = true;
     };
   }, []);
+
+  const assignAgent = async (item: NumberItem, userId: string | null) => {
+    setError(""); setNotice("");
+    try {
+      const res = await fetch(`/api/numbers/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "assign_user", assignedUserId: userId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update agent assignment.");
+      if (data.numbers) setNumbers(data.numbers);
+      setNotice(userId ? `Assigned ${item.label} exclusively to agent.` : `Returned ${item.label} to unassigned pool.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update agent assignment.");
+    }
+  };
 
   const refreshAccounts = async () => {
     try {
@@ -597,13 +618,30 @@ export function NumberAdmin({
                         {" · "}Priority {index + 1}
                       </div>
                     </div>
-                    <Badge
-                      variant={item.state === "Active" ? "success" : item.state === "Paused" ? "outline" : "warning"}
-                      className="gap-1.5"
-                    >
-                      {item.state === "Active" ? <Wifi className="size-3" /> : <Pause className="size-3" />}
-                      {item.state}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <span className="text-[11px] text-muted-foreground hidden sm:inline">Assigned:</span>
+                        <SelectControl
+                          aria-label={`Assigned agent for ${item.label}`}
+                          value={item.assignedUserId ?? ""}
+                          disabled={item.state === "Archived"}
+                          onChange={(event) => void assignAgent(item, event.target.value || null)}
+                          className="h-8 rounded-md border border-border bg-card px-2 text-xs max-w-[150px]"
+                        >
+                          <option value="">Pool (Shared)</option>
+                          {teamMembers.map((member) => (
+                            <option key={member.id} value={member.id}>{member.name}</option>
+                          ))}
+                        </SelectControl>
+                      </div>
+                      <Badge
+                        variant={item.state === "Active" ? "success" : item.state === "Paused" ? "outline" : "warning"}
+                        className="gap-1.5"
+                      >
+                        {item.state === "Active" ? <Wifi className="size-3" /> : <Pause className="size-3" />}
+                        {item.state}
+                      </Badge>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"

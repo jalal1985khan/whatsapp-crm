@@ -3,6 +3,7 @@ import { moveChannelNumber, updateChannelNumber } from "@/lib/crm-store";
 import { mfaAdminActionMessage, requireMfaForAdminChange } from "@/lib/auth";
 import { getPostgresPool, getWorkspaceId } from "@/lib/postgres-pool";
 import { checkMetaNumberIdentity, type MetaNumberCheck } from "@/lib/meta-number-health";
+import { assignNumberToAgent, triggerAgentNumberFailover } from "@/lib/agent-number-failover";
 import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
@@ -12,8 +13,30 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
   if (!session) return NextResponse.json({ error: "Administrator sign-in required." }, { status: 401 });
   if (needsMfa) return NextResponse.json({ error: mfaAdminActionMessage("changing number approval, activity, or routing priority") }, { status: 403 });
   const { id } = await context.params;
-  const body = await request.json().catch(() => null) as { action?: "approve" | "pause" | "activate" | "archive" | "rename" | "move_up" | "move_down" | "set_allowed_teams"; label?: string; allowedTeamIds?: unknown } | null;
-  if (!body?.action || !["approve", "pause", "activate", "archive", "rename", "move_up", "move_down", "set_allowed_teams"].includes(body.action)) return NextResponse.json({ error: "Choose a valid number-management action." }, { status: 400 });
+  const body = await request.json().catch(() => null) as {
+    action?: "approve" | "pause" | "activate" | "archive" | "rename" | "move_up" | "move_down" | "set_allowed_teams" | "assign_user";
+    label?: string;
+    allowedTeamIds?: unknown;
+    assignedUserId?: string | null;
+  } | null;
+  if (!body?.action || !["approve", "pause", "activate", "archive", "rename", "move_up", "move_down", "set_allowed_teams", "assign_user"].includes(body.action)) {
+    return NextResponse.json({ error: "Choose a valid number-management action." }, { status: 400 });
+  }
+
+  if (body.action === "assign_user") {
+    try {
+      await assignNumberToAgent({
+        workspaceId: getWorkspaceId(),
+        numberId: id,
+        userId: body.assignedUserId ? String(body.assignedUserId) : null,
+        actorUserId: session.userId,
+      });
+      const snapshot = await import("@/lib/crm-store").then(({ getCrmSnapshot }) => getCrmSnapshot());
+      return NextResponse.json({ number: snapshot.numbers.find((item) => item.id === id), numbers: snapshot.numbers });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "Could not assign agent." }, { status: 400 });
+    }
+  }
   let allowedTeamIds: string[] = [];
   if (body.action === "set_allowed_teams") {
     if (!Array.isArray(body.allowedTeamIds) || body.allowedTeamIds.length > 200 || body.allowedTeamIds.some((teamId) => typeof teamId !== "string" || teamId.length > 128)) return NextResponse.json({ error: "Choose valid workspace teams." }, { status: 400 });

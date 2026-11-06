@@ -74,7 +74,7 @@ type Chat = {
   messages: { id?: string; text: string; time: string; createdAt?: string; mine?: boolean; senderNumberId?: string; status?: "local" | "queued" | "sent" | "delivered" | "read" | "failed" | "unknown"; failureClass?: string; media?: { type: string; mimeType?: string; filename?: string; size?: number; caption?: string; mediaId?: string; stored?: boolean; storageStatus?: string; messageId?: string; accessUrl?: string } }[];
 };
 
-type SenderNumber = { id: string; label: string; number: string; state: string; allowedTeamIds?: string[]; provider?: "TWILIO" | "META"; metaPhoneNumberId?: string };
+type SenderNumber = { id: string; label: string; number: string; state: string; allowedTeamIds?: string[]; assignedUserId?: string | null; assignedUserName?: string | null; provider?: "TWILIO" | "META"; metaPhoneNumberId?: string };
 type TeamMember = { id: string; name: string; email: string; role: string };
 type Team = { id: string; name: string; members: TeamMember[] };
 type SyncedTemplate = { id: string; name: string; language: string; category: string; status: string; components: { type?: string; text?: string }[] };
@@ -318,7 +318,11 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   const activeThreadState = activeThreadAssignment?.state ?? (activeThreadExists ? activeChat?.state : undefined) ?? "Open";
   const activeThreadAssigneeId = activeThreadAssignment?.assignedUserId;
   const activeThreadTeamId = activeThreadAssignment?.assignedTeamId;
-  const viewedThreadMessages = (activeChat?.messages ?? []).filter((message) => message.senderNumberId === viewedThreadNumberId);
+  const isThreadFiltered = Boolean(viewThread != null && viewThread.contactId === activeChat?.id);
+  // Unified conversation continuity: show full customer conversation history across all numbers by default
+  const viewedThreadMessages = isThreadFiltered
+    ? (activeChat?.messages ?? []).filter((message) => message.senderNumberId === viewThread!.numberId)
+    : (activeChat?.messages ?? []);
   const customerTimeline = useMemo(() => {
     if (!activeChat) return [];
     const items: { key: string; timestamp: string; displayTime?: string; title: string; detail: string; senderNumberId?: string; messageId?: string }[] = [];
@@ -340,7 +344,10 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   }, [viewedThreadMessages]);
   const senderNumbersForChat = useMemo(() => eligibleSenders(activeChat, senderNumbers), [senderNumbers, activeChat]);
   const currentThreadNumberId = activeChat?.currentSenderNumberId ?? [...(activeChat?.messages ?? [])].reverse().find((message) => message.senderNumberId)?.senderNumberId;
+  const agentAssignedNumber = senderNumbersForChat.find((number) => number.assignedUserId === user.id && number.state === "Active")
+    ?? senderNumbers.find((number) => number.assignedUserId === user.id && number.state === "Active");
   const activeNumber = senderNumbersForChat.find((number) => number.id === activeNumberId)
+    ?? agentAssignedNumber
     ?? senderNumbersForChat.find((number) => number.id === currentThreadNumberId)
     ?? senderNumbersForChat.find((number) => number.state === "Active")
     ?? senderNumbers.find((number) => number.state === "Active")
@@ -1264,8 +1271,23 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                         <Info className="size-4" /> This chat switched WhatsApp sender number
                       </div>
                       <p className="mt-1 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200/80">
-                        Previous messages were sent from {previousSender.label} ({previousSender.number}). New replies will use {activeNumber.label} ({activeNumber.number}).
+                        Previous messages were sent from {previousSender.label} ({previousSender.number}). New replies will use {activeNumber.label} ({activeNumber.number}). Conversation history is preserved across sender numbers.
                       </p>
+                    </div>
+                  )}
+
+                  {isThreadFiltered && (
+                    <div className="my-2 flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-3 py-1.5 text-xs">
+                      <span className="text-muted-foreground">
+                        Filtered to sender thread: <strong className="text-foreground">{channelNumbers.find((n) => n.id === viewThread?.numberId)?.label ?? "WhatsApp"}</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setViewThread(null)}
+                        className="text-xs font-medium text-primary hover:underline cursor-pointer"
+                      >
+                        Show full conversation history
+                      </button>
                     </div>
                   )}
 

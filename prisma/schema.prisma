@@ -139,6 +139,7 @@ model User {
   savedInboxViews SavedInboxView[]
   invitationsSent WorkspaceInvitation[] @relation("InvitationSender")
   messageRetries MessageRetry[]
+  assignedNumbers ChannelNumber[] @relation("AssignedChannelNumber")
 }
 
 model LoginRateLimit {
@@ -258,6 +259,7 @@ model ChannelNumber {
   connectionRef         String?
   whatsappConnectionId String?
   allowedTeamIds        String[]        @default([])
+  assignedUserId        String?
   routingPriority       Int             @default(100)
   approvedByUserId      String?
   approvedAt            DateTime?
@@ -265,6 +267,7 @@ model ChannelNumber {
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
   workspace             Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedUser          User?           @relation("AssignedChannelNumber", fields: [assignedUserId], references: [id], onDelete: SetNull)
   whatsappConnection   WhatsAppConnection? @relation(fields: [whatsappConnectionId], references: [id], onDelete: SetNull)
   twilioAccount        TwilioAccount?  @relation(fields: [twilioAccountId], references: [id], onDelete: SetNull)
   conversations         Conversation[]
@@ -276,6 +279,7 @@ model ChannelNumber {
   @@unique([workspaceId, e164Number])
   @@unique([metaPhoneNumberId])
   @@index([workspaceId, state, routingPriority])
+  @@index([workspaceId, assignedUserId])
 }
 
 model WhatsAppConnection {

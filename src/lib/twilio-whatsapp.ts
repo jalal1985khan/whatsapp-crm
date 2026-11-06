@@ -4,6 +4,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import type { PoolClient, QueryResultRow } from "pg";
 import { getPostgresPool, getWorkspaceId, ensureWorkspace } from "@/lib/postgres-pool";
 import { getTwilioCredentialsForNumber, getTwilioCredentialsByAccountSid } from "@/lib/twilio-credentials";
+import { triggerAgentNumberFailover } from "@/lib/agent-number-failover";
 
 type Row = QueryResultRow;
 
@@ -76,10 +77,11 @@ export async function sendTwilioTextMessage(input: {
   let conversationId = "";
   let recipient = "";
   let fromNumber = creds.fromE164;
+  let workspaceId = "";
 
   try {
     await client.query("BEGIN");
-    const workspaceId = await ensureWorkspace(client);
+    workspaceId = await ensureWorkspace(client);
 
     // Check idempotency
     const prior = await client.query<Row>(
@@ -193,6 +195,31 @@ export async function sendTwilioTextMessage(input: {
         `UPDATE "Message" SET "status" = 'FAILED', "failureCode" = $2 WHERE "id" = $1`,
         [messageId, errCode],
       );
+
+      const isBlockedSender = [63007, 63013, 63032, 21211, 21610, 21614].includes(Number(data.code))
+        || /block|suspend|restrict|violation/i.test(data.message || "");
+
+      if (isBlockedSender && workspaceId) {
+        try {
+          const failover = await triggerAgentNumberFailover({
+            workspaceId,
+            blockedNumberId: input.senderNumberId,
+            reason: `TWILIO_${errCode}: ${data.message || "Number blocked or restricted"}`,
+          });
+
+          if (failover.success && failover.reallocated && failover.replacementNumber) {
+            // Immediate retry with the newly assigned exclusive replacement number
+            return await sendTwilioTextMessage({
+              ...input,
+              senderNumberId: failover.replacementNumber.id,
+              idempotencyKey: `${input.idempotencyKey}-failover-${failover.replacementNumber.id}`,
+            });
+          }
+        } catch {
+          // If failover execution fails, proceed to throw original error
+        }
+      }
+
       throw new Error(`Twilio error: ${data.message || `HTTP ${response.status}`}`);
     }
   } finally {
@@ -352,6 +379,25 @@ export async function processTwilioStatusCallback(params: Record<string, string>
      WHERE "platformMessageId" = $1`,
     [messageSid, dbStatus, errorCode],
   );
+
+  // If status is failed/undelivered due to channel block, auto-failover the sender number
+  if ((status === "failed" || status === "undelivered") && errorCode && [63007, 63013, 63032, 21211, 21610, 21614].includes(Number(errorCode))) {
+    try {
+      const msgRes = await pool.query<Row>(
+        `SELECT "channelNumberId", "workspaceId" FROM "Message" WHERE "platformMessageId" = $1 LIMIT 1`,
+        [messageSid],
+      );
+      if (msgRes.rows[0]) {
+        await triggerAgentNumberFailover({
+          workspaceId: String(msgRes.rows[0].workspaceId),
+          blockedNumberId: String(msgRes.rows[0].channelNumberId),
+          reason: `TWILIO_CALLBACK_CODE_${errorCode}`,
+        });
+      }
+    } catch {
+      // Non-blocking for webhook ack
+    }
+  }
 
   return true;
 }
