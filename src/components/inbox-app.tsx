@@ -874,7 +874,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   <RailLink href="/admin/numbers" label="WhatsApp Numbers">
                     <Smartphone className="size-5" />
                   </RailLink>
-                  <RailLink href="/reports" label="AI Analytics">
+                  <RailLink href="/reports" label="Reports">
                     <BarChart3 className="size-5" />
                   </RailLink>
                 </>
