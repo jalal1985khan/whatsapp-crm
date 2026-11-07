@@ -59,7 +59,7 @@ export function AdminSidebarLayout({ children, user }: AdminSidebarLayoutProps) 
       items: [
         { name: "Live Inbox", href: "/", icon: MessageSquare, exact: true },
         { name: "Customer Directory", href: "/customers", icon: Users, exact: false },
-        { name: "AI Analytics", href: "/reports", icon: BarChart3, exact: false, badge: "New" },
+        { name: "WhatsApp Reports", href: "/reports", icon: BarChart3, exact: false },
       ],
     },
     {
@@ -139,7 +139,7 @@ export function AdminSidebarLayout({ children, user }: AdminSidebarLayoutProps) 
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "group flex items-center justify-between rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                      "group flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                       isActive
                         ? "bg-primary/10 text-primary font-semibold shadow-xs"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
