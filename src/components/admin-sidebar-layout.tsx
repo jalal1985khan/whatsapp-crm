@@ -221,7 +221,7 @@ export function AdminSidebarLayout({ children, user }: AdminSidebarLayoutProps) 
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background font-sans antialiased">
       {/* Desktop Persistent Sidebar */}
       <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-card shadow-xs">
         {SidebarContent}

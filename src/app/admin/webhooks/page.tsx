@@ -30,7 +30,7 @@ export default async function WebhookHealthPage() {
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Webhook health</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Webhook health</h1>
         <p className="mt-1 text-sm text-muted-foreground">Inspect persisted events and retry recoverable webhooks without duplicating messages.</p>
       </div>
       <WebhookHealth initialCounts={counts} initialLatestFailed={latestFailed} setupError={setupError} />

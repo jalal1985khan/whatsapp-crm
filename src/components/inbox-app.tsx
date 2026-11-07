@@ -1706,7 +1706,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
             <div className="size-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 text-primary shadow-2xs">
               <MessageSquare className="size-10" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground tracking-tight">WhatsApp CRM Web</h2>
+            <h2 className="text-2xl font-semibold text-foreground tracking-tight">WhatsApp CRM Web</h2>
             <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
               Send and receive WhatsApp messages with your customers across connected Twilio numbers with unified timeline storage.
             </p>

@@ -18,7 +18,7 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
       <div className="mx-auto max-w-6xl px-5 py-8 md:px-8">
         <div className="mb-6 flex items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Customers</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Customers</h1>
             <p className="mt-1 text-sm text-muted-foreground">Customer records and conversation history across your WhatsApp numbers.</p>
           </div>
           <Badge variant="secondary">{snapshot.chats.length} contacts</Badge>

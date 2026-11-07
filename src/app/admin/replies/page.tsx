@@ -17,7 +17,7 @@ export default async function CannedRepliesPage() {
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Saved replies</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Saved replies</h1>
         <p className="mt-1 text-sm text-muted-foreground">Create approved team-wide reply snippets for agents to insert into the composer.</p>
       </div>
       <CannedReplyAdmin initialReplies={replies} setupError={setupError} />

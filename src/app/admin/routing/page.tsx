@@ -26,7 +26,7 @@ export default async function RoutingPage() {
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Routing rules</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Routing rules</h1>
         <p className="mt-1 text-sm text-muted-foreground">Choose approved sender numbers for new conversations based on team and customer phone prefix.</p>
       </div>
       <RoutingAdmin initialNumbers={numbers} initialTeams={teams} setupError={error} />

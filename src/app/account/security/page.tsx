@@ -17,7 +17,7 @@ export default async function AccountSecurityPage() {
       <AdminSidebarLayout user={{ name: session.name, email: session.email, role: session.role }}>
         <div className="mx-auto max-w-4xl px-5 py-8 md:px-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Account security</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Account security</h1>
             <p className="mt-1 text-sm text-muted-foreground">Review and revoke active sign-ins for your account.</p>
           </div>
           <SessionManager />
