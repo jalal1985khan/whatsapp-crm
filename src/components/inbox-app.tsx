@@ -84,7 +84,7 @@ type Team = { id: string; name: string; members: TeamMember[] };
 type CannedReply = { id: string; title: string; shortcut: string | null; body: string };
 type SavedInboxView = { id: string; name: string; query: string; activeTab: string; stateFilter: string; numberFilter: string; teamFilter: string; tagFilter: string; dateFrom: string; dateTo: string };
 
-function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPurge, sending, onRetry, onPurge }: {
+function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPurge, sending, onRetry, onUseTemplate, onPurge }: {
   chat: Chat;
   message: Chat["messages"][number];
   index: number;
@@ -93,9 +93,11 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
   canPurge: boolean;
   sending: boolean;
   onRetry: (messageId: string) => void;
+  onUseTemplate: () => void;
   onPurge: (messageId: string) => void;
 }) {
   const messageId = message.id ?? `${chat.id}-${index}`;
+  const requiresTemplate = /^63016(?:\b|:)/.test(message.failureCode ?? "");
   return (
     <MessageScrollerItem id={message.id ? `crm-message-${message.id}` : undefined} messageId={messageId} scrollAnchor={!message.mine}>
       <div className={`flex w-full mb-3 ${message.mine ? "justify-end" : "justify-start"}`}>
@@ -153,8 +155,8 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
               <span title={message.failureCode ? `Provider error ${message.failureCode}` : "The provider did not deliver this message."} className="text-destructive font-semibold text-[10px] flex items-center gap-1 bg-white/90 px-1 rounded">
                 Failed{message.failureCode ? ` · ${message.failureCode}` : ""}
                 {canRetry && message.id && (
-                  <button type="button" onClick={() => onRetry(message.id!)} className="underline hover:text-destructive/80 ml-0.5">
-                    Retry
+                  <button type="button" onClick={() => requiresTemplate ? onUseTemplate() : onRetry(message.id!)} className="underline hover:text-destructive/80 ml-0.5">
+                    {requiresTemplate ? "Use template" : "Retry"}
                   </button>
                 )}
               </span>
@@ -1350,6 +1352,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                       canPurge={adminCanPurgeMedia}
                       sending={sending}
                       onRetry={(messageId) => void retryFailedMessage(messageId)}
+                      onUseTemplate={() => { setComposerMode("template"); setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); }}
                       onPurge={(messageId) => void purgeAttachment(messageId)}
                     />
                   ))}
@@ -1491,7 +1494,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
             {composerMode !== "template" && (
             <>
             {/* Twilio text reply composer */}
-              /* Reply / Note Main Bar */
+              {/* Reply / Note Main Bar */}
               <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 shadow-2xs focus-within:ring-1 focus-within:ring-ring transition-all">
                 {/* Left WhatsApp Icons */}
                 <div className="flex items-center gap-0.5 pb-0.5 text-muted-foreground">
