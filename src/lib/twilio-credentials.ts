@@ -48,7 +48,7 @@ export async function getTwilioCredentialsForNumber(numberId: string): Promise<T
 
   const pool = getPostgresPool();
   const result = await pool.query<Row>(
-    `SELECT n."id", n."e164Number", n."twilioAccountSid", n."twilioAuthTokenEncrypted",
+    `SELECT n."id", n."e164Number", n."provider", n."twilioAccountSid", n."twilioAuthTokenEncrypted",
             ta."id" AS "taId", ta."accountSid" AS "taAccountSid", ta."authTokenEncrypted" AS "taAuthTokenEncrypted"
      FROM "ChannelNumber" n
      LEFT JOIN "TwilioAccount" ta ON ta."id" = n."twilioAccountId"
@@ -58,6 +58,7 @@ export async function getTwilioCredentialsForNumber(numberId: string): Promise<T
 
   const row = result.rows[0];
   if (!row) return null;
+  if (row.provider !== "TWILIO") return null;
 
   const fromE164 = String(row.e164Number);
   const accountSid = String(row.taAccountSid || row.twilioAccountSid || process.env.TWILIO_ACCOUNT_SID || "");
@@ -84,34 +85,32 @@ export async function getTwilioAuthTokensByAccountSid(accountSid: string): Promi
   }
 
   if (process.env.DATABASE_URL) {
-    try {
-      const pool = getPostgresPool();
-      const workspaceId = getWorkspaceId();
+    const pool = getPostgresPool();
+    const workspaceId = getWorkspaceId();
 
-      const accountResult = await pool.query<Row>(
-        `SELECT "authTokenEncrypted" FROM "TwilioAccount" WHERE "workspaceId" = $1 AND "accountSid" = $2`,
-        [workspaceId, accountSid],
-      );
-      for (const row of accountResult.rows) {
-        if (row.authTokenEncrypted) {
-          try {
-            tokens.add(decryptTwilioAuthToken(String(row.authTokenEncrypted)));
-          } catch { }
-        }
+    const accountResult = await pool.query<Row>(
+      `SELECT "authTokenEncrypted" FROM "TwilioAccount" WHERE "workspaceId" = $1 AND "accountSid" = $2`,
+      [workspaceId, accountSid],
+    );
+    for (const row of accountResult.rows) {
+      if (row.authTokenEncrypted) {
+        try {
+          tokens.add(decryptTwilioAuthToken(String(row.authTokenEncrypted)));
+        } catch { }
       }
+    }
 
-      const numberResult = await pool.query<Row>(
-        `SELECT "twilioAuthTokenEncrypted" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "twilioAccountSid" = $2`,
-        [workspaceId, accountSid],
-      );
-      for (const row of numberResult.rows) {
-        if (row.twilioAuthTokenEncrypted) {
-          try {
-            tokens.add(decryptTwilioAuthToken(String(row.twilioAuthTokenEncrypted)));
-          } catch { }
-        }
+    const numberResult = await pool.query<Row>(
+      `SELECT "twilioAuthTokenEncrypted" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "twilioAccountSid" = $2`,
+      [workspaceId, accountSid],
+    );
+    for (const row of numberResult.rows) {
+      if (row.twilioAuthTokenEncrypted) {
+        try {
+          tokens.add(decryptTwilioAuthToken(String(row.twilioAuthTokenEncrypted)));
+        } catch { }
       }
-    } catch { }
+    }
   }
 
   return Array.from(tokens);

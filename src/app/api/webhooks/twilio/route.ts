@@ -17,27 +17,23 @@ function getCandidateWebhookUrls(request: NextRequest): string[] {
   const pathname = request.nextUrl.pathname;
   const search = request.nextUrl.search;
 
-  urls.add(request.nextUrl.toString());
+  if (process.env.APP_BASE_URL) urls.add(`${process.env.APP_BASE_URL.replace(/\/$/, "")}${pathname}${search}`);
 
   const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
 
   if (host) {
-    urls.add(`${forwardedProto}://${host}${pathname}${search}`);
-    urls.add(`https://${host}${pathname}${search}`);
-    urls.add(`http://${host}${pathname}${search}`);
-
-    const altPath = pathname.endsWith("/") ? pathname.slice(0, -1) : `${pathname}/`;
-    urls.add(`${forwardedProto}://${host}${altPath}${search}`);
-    urls.add(`https://${host}${altPath}${search}`);
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const candidates = [
+      `${forwardedProto}://${host}${pathname}${search}`,
+      `https://${host}${pathname}${search}`,
+      `http://${host}${pathname}${search}`,
+      ...(forwardedHost && forwardedHost !== host ? [`${forwardedProto}://${forwardedHost}${pathname}${search}`, `https://${forwardedHost}${pathname}${search}`] : []),
+    ];
+    for (const url of candidates) urls.add(url);
   }
 
-  if (process.env.APP_BASE_URL) {
-    const base = process.env.APP_BASE_URL.replace(/\/$/, "");
-    urls.add(`${base}${pathname}${search}`);
-    const altPath = pathname.endsWith("/") ? pathname.slice(0, -1) : `${pathname}/`;
-    urls.add(`${base}${altPath}${search}`);
-  }
+  urls.add(request.nextUrl.toString());
 
   return Array.from(urls);
 }
@@ -73,12 +69,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Validate Twilio signature if auth token is available
+  // Resolve the account token and reject unsigned or invalid requests whenever configured.
   const twilioSignature = request.headers.get("x-twilio-signature");
   const accountSid = params.AccountSid;
-  if (twilioSignature && accountSid) {
-    const authTokens = await getTwilioAuthTokensByAccountSid(accountSid);
-    if (authTokens.length > 0) {
+  if (!twilioSignature || !accountSid) return NextResponse.json({ error: "Twilio signature and AccountSid are required." }, { status: 401 });
+  {
+    let authTokens: string[];
+    try {
+      authTokens = await getTwilioAuthTokensByAccountSid(accountSid);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      console.error("Twilio credential lookup failed before webhook signature verification.", code || "unknown error");
+      return NextResponse.json({ error: "The CRM cannot access its Twilio credential store. Check the PostgreSQL connection." }, { status: 503 });
+    }
+    if (authTokens.length === 0) return NextResponse.json({ error: "No configured Twilio account matches this webhook." }, { status: 401 });
+    {
       const candidateUrls = getCandidateWebhookUrls(request);
       let isValid = false;
       for (const token of authTokens) {
@@ -90,26 +95,28 @@ export async function POST(request: NextRequest) {
         }
         if (isValid) break;
       }
-      if (!isValid) {
-        console.warn("Twilio signature validation failed for AccountSid:", accountSid, "tested URLs:", candidateUrls);
-      }
+      if (!isValid) return NextResponse.json({ error: "Invalid Twilio signature." }, { status: 401 });
     }
   }
 
-  // Check if this is a Status Callback or Inbound Message
-  const isStatusCallback = Boolean(params.MessageStatus || params.SmsStatus);
+  const isInboundMessage = Boolean(params.From && params.To && (params.MessageSid || params.SmsMessageSid));
+  const isStatusCallback = !isInboundMessage && Boolean(params.MessageStatus || params.SmsStatus);
 
   try {
+    if (!process.env.DATABASE_URL) return NextResponse.json({ error: "CRM database is not configured; incoming messages cannot be stored." }, { status: 503 });
     if (isStatusCallback) {
       await processTwilioStatusCallback(params);
-    } else if (params.From && params.To) {
+    } else if (isInboundMessage) {
+      const inboundAccountTokens = await getTwilioAuthTokensByAccountSid(accountSid);
+      if (!inboundAccountTokens.length) return NextResponse.json({ error: "Twilio account is not configured in this workspace." }, { status: 401 });
       await processTwilioInboundMessage(params);
+    } else {
+      return NextResponse.json({ error: "Webhook payload is missing message direction fields." }, { status: 400 });
     }
     return emptyTwiML();
   } catch (err) {
     console.error("Twilio webhook error:", err);
-    // Always return 200 to Twilio so it does not endlessly retry delivery of dropped webhooks
-    return emptyTwiML();
+    return NextResponse.json({ error: "Twilio webhook processing failed. Check the CRM server logs and webhook health." }, { status: 500 });
   }
 }
 

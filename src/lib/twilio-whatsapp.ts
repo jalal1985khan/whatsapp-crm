@@ -61,14 +61,43 @@ export function normalizeWhatsAppE164(input: string): string {
 export async function sendTwilioTextMessage(input: {
   contactId: string;
   senderNumberId: string;
-  text: string;
+  text?: string;
+  contentSid?: string;
+  contentVariables?: Record<string, string>;
   idempotencyKey: string;
+  statusCallbackUrl?: string;
 }): Promise<TwilioSendResult> {
   if (!process.env.DATABASE_URL) throw new Error("Database is required for messaging.");
 
   const creds = await getTwilioCredentialsForNumber(input.senderNumberId);
   if (!creds || !creds.accountSid || !creds.authToken) {
     throw new Error("Twilio credentials are not configured for this sender number. Please configure your Twilio Account in Admin -> WhatsApp Numbers.");
+  }
+
+  let renderedText = input.text?.trim() ?? "";
+  if (input.contentSid) {
+    if (!/^HX[a-fA-F0-9]{32}$/.test(input.contentSid)) throw new Error("Choose a valid Twilio Content SID.");
+    const authorization = `Basic ${Buffer.from(`${creds.accountSid}:${creds.authToken}`).toString("base64")}`;
+    const approvalResponse = await fetch(`https://content.twilio.com/v1/Content/${encodeURIComponent(input.contentSid)}/ApprovalRequests`, { headers: { Authorization: authorization }, signal: AbortSignal.timeout(10_000), cache: "no-store" });
+    const approval = await approvalResponse.json() as { whatsapp?: { status?: string }; message?: string };
+    if (!approvalResponse.ok) throw new Error(approval.message || "Could not verify the Twilio template approval status.");
+    if (approval.whatsapp?.status?.toLowerCase() !== "approved") throw new Error("This WhatsApp template is not approved for sending.");
+    const contentResponse = await fetch(`https://content.twilio.com/v1/Content/${encodeURIComponent(input.contentSid)}`, { headers: { Authorization: authorization }, signal: AbortSignal.timeout(10_000), cache: "no-store" });
+    const content = await contentResponse.json() as { types?: Record<string, { body?: string }> };
+    if (!contentResponse.ok) throw new Error("Could not load the selected Twilio template content.");
+    const templateText = content.types?.["twilio/text"]?.body ?? content.types?.["whatsapp/text"]?.body ?? "";
+    const requiredVariables = [...new Set([...templateText.matchAll(/\{\{\s*([^{}\s]+)\s*\}\}/g)].map((match) => match[1]))];
+    const suppliedVariables = Object.keys(input.contentVariables ?? {});
+    if (requiredVariables.some((key) => !input.contentVariables?.[key]?.trim()) || suppliedVariables.some((key) => !requiredVariables.includes(key))) {
+      throw new Error("Provide a non-empty value for every variable in the selected Twilio template.");
+    }
+    if (suppliedVariables.some((key) => input.contentVariables![key].length > 1024 || /[\r\n]/.test(input.contentVariables![key]))) {
+      throw new Error("Template values must be one line and no longer than 1,024 characters.");
+    }
+    renderedText = templateText.replace(/\{\{\s*([^{}\s]+)\s*\}\}/g, (_match, key: string) => input.contentVariables?.[key] ?? `{{${key}}}`);
+    if (!renderedText) renderedText = `WhatsApp template ${input.contentSid}`;
+  } else if (!renderedText) {
+    throw new Error("Enter a message.");
   }
 
   const pool = getPostgresPool();
@@ -99,8 +128,8 @@ export async function sendTwilioTextMessage(input: {
 
     // Load contact and conversation
     const target = await client.query<Row>(
-      `SELECT c."id" AS "contactId", c."primaryPhone", n."id" AS "numberId", n."e164Number",
-              v."id" AS "conversationId"
+      `SELECT c."id" AS "contactId", c."primaryPhone", c."suppressionState", n."id" AS "numberId", n."e164Number",
+              v."id" AS "conversationId", v."serviceWindowExpiresAt"
        FROM "Contact" c
        JOIN "ChannelNumber" n ON n."workspaceId" = c."workspaceId"
        LEFT JOIN "Conversation" v ON v."contactId" = c."id" AND v."workspaceId" = c."workspaceId" AND v."channelNumberId" = n."id"
@@ -111,6 +140,10 @@ export async function sendTwilioTextMessage(input: {
 
     const row = target.rows[0];
     if (!row) throw new Error("Customer or sender number not found.");
+    if (row.suppressionState === "OPTED_OUT") throw new Error("This customer has opted out of WhatsApp messages.");
+    if (!input.contentSid && (!row.conversationId || !row.serviceWindowExpiresAt || new Date(String(row.serviceWindowExpiresAt)).getTime() <= Date.now())) {
+      throw new Error("The WhatsApp customer service window is closed. Choose an approved Twilio WhatsApp template to continue the conversation.");
+    }
     recipient = normalizeWhatsAppE164(String(row.primaryPhone));
     fromNumber = normalizeWhatsAppE164(String(row.e164Number || fromNumber));
 
@@ -119,8 +152,8 @@ export async function sendTwilioTextMessage(input: {
       conversationId = String(row.conversationId);
     } else {
       const newConv = await client.query<Row>(
-        `INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "lastMessageAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'OPEN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "lastMessageAt", "serviceWindowExpiresAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, 'OPEN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP)
          RETURNING "id"`,
         [randomUUID(), workspaceId, input.contactId, input.senderNumberId],
       );
@@ -131,7 +164,7 @@ export async function sendTwilioTextMessage(input: {
     await client.query(
       `INSERT INTO "Message" ("id", "workspaceId", "conversationId", "contactId", "channelNumberId", "direction", "status", "messageType", "textBody", "idempotencyKey", "createdAt")
        VALUES ($1, $2, $3, $4, $5, 'OUTBOUND', 'QUEUED', 'text', $6, $7, CURRENT_TIMESTAMP)`,
-      [messageId, workspaceId, conversationId, input.contactId, input.senderNumberId, input.text, input.idempotencyKey],
+      [messageId, workspaceId, conversationId, input.contactId, input.senderNumberId, renderedText, input.idempotencyKey],
     );
 
     await client.query(
@@ -152,10 +185,13 @@ export async function sendTwilioTextMessage(input: {
   const formBody = new URLSearchParams();
   formBody.append("From", `whatsapp:${fromNumber}`);
   formBody.append("To", `whatsapp:${recipient}`);
-  formBody.append("Body", input.text);
+  if (input.contentSid) {
+    formBody.append("ContentSid", input.contentSid);
+    if (input.contentVariables && Object.keys(input.contentVariables).length) formBody.append("ContentVariables", JSON.stringify(input.contentVariables));
+  } else formBody.append("Body", renderedText);
 
-  const baseUrl = process.env.APP_BASE_URL || "https://crm.storeshop.biz";
-  formBody.append("StatusCallback", `${baseUrl.replace(/\/$/, "")}/api/webhooks/twilio/status`);
+  const callbackUrl = input.statusCallbackUrl || (process.env.APP_BASE_URL ? `${process.env.APP_BASE_URL.replace(/\/$/, "")}/api/webhooks/twilio/status` : "");
+  if (callbackUrl) formBody.append("StatusCallback", callbackUrl);
 
   let response: Response;
   let data: { sid?: string; status?: string; message?: string; code?: number };
@@ -190,7 +226,7 @@ export async function sendTwilioTextMessage(input: {
       );
       return { id: messageId, platformMessageId: data.sid, status: "sent", duplicate: false };
     } else {
-      const errCode = data.code ? String(data.code) : `HTTP_${response.status}`;
+      const errCode = data.code ? `${data.code}${data.message ? `: ${data.message.slice(0, 180)}` : ""}` : `HTTP_${response.status}${data.message ? `: ${data.message.slice(0, 180)}` : ""}`;
       await updateClient.query(
         `UPDATE "Message" SET "status" = 'FAILED', "failureCode" = $2 WHERE "id" = $1`,
         [messageId, errCode],
@@ -213,6 +249,7 @@ export async function sendTwilioTextMessage(input: {
               ...input,
               senderNumberId: failover.replacementNumber.id,
               idempotencyKey: `${input.idempotencyKey}-failover-${failover.replacementNumber.id}`,
+              statusCallbackUrl: input.statusCallbackUrl,
             });
           }
         } catch {
@@ -254,9 +291,18 @@ export async function processTwilioInboundMessage(params: Record<string, string>
     const workspaceId = await ensureWorkspace(client);
 
     // 1. Locate the ChannelNumber matching the 'To' address
+    const duplicate = await client.query<Row>(
+      `SELECT "id", "conversationId" FROM "Message" WHERE "workspaceId" = $1 AND "platformMessageId" = $2 LIMIT 1`,
+      [workspaceId, messageSid],
+    );
+    if (duplicate.rows[0]) {
+      await client.query("COMMIT");
+      return { conversationId: String(duplicate.rows[0].conversationId), messageId: String(duplicate.rows[0].id) };
+    }
+
     let numberRow = (
       await client.query<Row>(
-        `SELECT "id", "workspaceId" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "e164Number" = $2 LIMIT 1`,
+        `SELECT "id", "workspaceId" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "provider" = 'TWILIO' AND "e164Number" = $2 LIMIT 1`,
         [workspaceId, toE164],
       )
     ).rows[0];
@@ -265,23 +311,16 @@ export async function processTwilioInboundMessage(params: Record<string, string>
     if (!numberRow) {
       numberRow = (
         await client.query<Row>(
-          `SELECT "id", "workspaceId" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND regexp_replace("e164Number", '\\D', '', 'g') = $2 LIMIT 1`,
+          `SELECT "id", "workspaceId" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "provider" = 'TWILIO' AND regexp_replace("e164Number", '\\D', '', 'g') = $2 LIMIT 1`,
           [workspaceId, toE164.replace(/\D/g, "")],
         )
       ).rows[0];
     }
 
-    // Auto-create channel number if not registered yet so inbound is never dropped!
+    // Do not silently create a sender. Admins must register and approve each Twilio sender.
     let channelNumberId = numberRow ? String(numberRow.id) : "";
     if (!channelNumberId) {
-      const createdNum = await client.query<Row>(
-        `INSERT INTO "ChannelNumber" ("id", "workspaceId", "label", "e164Number", "state", "provider", "routingPriority", "approvedAt", "createdAt", "updatedAt")
-         VALUES ($1, $2, $3, $4, 'ACTIVE', 'TWILIO', 100, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-         ON CONFLICT ("workspaceId", "e164Number") DO UPDATE SET "state" = 'ACTIVE'
-         RETURNING "id"`,
-        [randomUUID(), workspaceId, `Twilio (${toE164})`, toE164],
-      );
-      channelNumberId = String(createdNum.rows[0].id);
+      throw new Error(`Inbound Twilio sender ${toE164} is not registered in this CRM workspace. Add it in Admin → WhatsApp numbers.`);
     }
 
     // 2. Find or Create Contact
@@ -333,10 +372,10 @@ export async function processTwilioInboundMessage(params: Record<string, string>
 
     // 3. Find or Create Conversation
     const convResult = await client.query<Row>(
-      `INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "unreadCount", "lastMessageAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'OPEN', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "unreadCount", "lastMessageAt", "serviceWindowExpiresAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, 'OPEN', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP)
        ON CONFLICT ("contactId", "channelNumberId")
-       DO UPDATE SET "unreadCount" = "Conversation"."unreadCount" + 1, "lastMessageAt" = CURRENT_TIMESTAMP, "state" = 'OPEN', "updatedAt" = CURRENT_TIMESTAMP
+       DO UPDATE SET "unreadCount" = "Conversation"."unreadCount" + 1, "lastMessageAt" = CURRENT_TIMESTAMP, "serviceWindowExpiresAt" = CURRENT_TIMESTAMP + INTERVAL '24 hours', "state" = 'OPEN', "updatedAt" = CURRENT_TIMESTAMP
        RETURNING "id"`,
       [randomUUID(), workspaceId, contactId, channelNumberId],
     );
@@ -374,6 +413,8 @@ export async function processTwilioStatusCallback(params: Record<string, string>
   const messageSid = params.MessageSid || params.SmsSid;
   const status = (params.MessageStatus || params.SmsStatus || "").toLowerCase();
   const errorCode = params.ErrorCode || null;
+  const errorMessage = params.ErrorMessage?.trim().slice(0, 180) || null;
+  const providerError = errorCode && errorMessage ? `${errorCode}: ${errorMessage}` : errorCode;
 
   if (!messageSid || !status) return false;
 
@@ -391,7 +432,7 @@ export async function processTwilioStatusCallback(params: Record<string, string>
          "deliveredAt" = CASE WHEN $2 = 'DELIVERED' AND "deliveredAt" IS NULL THEN CURRENT_TIMESTAMP ELSE "deliveredAt" END,
          "readAt" = CASE WHEN $2 = 'READ' AND "readAt" IS NULL THEN CURRENT_TIMESTAMP ELSE "readAt" END
      WHERE "platformMessageId" = $1`,
-    [messageSid, dbStatus, errorCode],
+    [messageSid, dbStatus, providerError],
   );
 
   // If status is failed/undelivered due to channel block, auto-failover the sender number

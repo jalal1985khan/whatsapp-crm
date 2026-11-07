@@ -27,7 +27,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -75,13 +74,13 @@ type Chat = {
   consentUpdatedBy?: string;
   consentHistory?: { id: string; status: "opted_in" | "opted_out"; source: string; wordingVersion?: string; updatedAt: string; updatedBy: string }[];
   color: string;
-  messages: { id?: string; text: string; time: string; createdAt?: string; mine?: boolean; senderNumberId?: string; status?: "local" | "queued" | "sent" | "delivered" | "read" | "failed" | "unknown"; failureClass?: string; media?: { type: string; mimeType?: string; filename?: string; size?: number; caption?: string; mediaId?: string; stored?: boolean; storageStatus?: string; messageId?: string; accessUrl?: string } }[];
+  messages: { id?: string; text: string; time: string; createdAt?: string; mine?: boolean; senderNumberId?: string; status?: "local" | "queued" | "sent" | "delivered" | "read" | "failed" | "unknown"; failureClass?: string; failureCode?: string; media?: { type: string; mimeType?: string; filename?: string; size?: number; caption?: string; mediaId?: string; stored?: boolean; storageStatus?: string; messageId?: string; accessUrl?: string } }[];
 };
 
 type SenderNumber = { id: string; label: string; number: string; state: string; allowedTeamIds?: string[]; assignedUserId?: string | null; assignedUserName?: string | null; provider?: "TWILIO" | "META"; metaPhoneNumberId?: string };
+type TwilioTemplate = { sid: string; name: string; language: string; body: string; status: string; category: string; variables: string[] };
 type TeamMember = { id: string; name: string; email: string; role: string };
 type Team = { id: string; name: string; members: TeamMember[] };
-type SyncedTemplate = { id: string; name: string; language: string; category: string; status: string; components: { type?: string; text?: string }[] };
 type CannedReply = { id: string; title: string; shortcut: string | null; body: string };
 type SavedInboxView = { id: string; name: string; query: string; activeTab: string; stateFilter: string; numberFilter: string; teamFilter: string; tagFilter: string; dateFrom: string; dateTo: string };
 
@@ -151,8 +150,8 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
             {message.mine && message.status === "sent" && <Check className="size-3 text-primary-foreground/75" />}
             {message.mine && (message.status === "queued" || message.status === "local") && <Clock3 className="size-3 text-primary-foreground/75" />}
             {message.mine && message.status === "failed" && (
-              <span className="text-destructive font-semibold text-[10px] flex items-center gap-1 bg-white/90 px-1 rounded">
-                Failed
+              <span title={message.failureCode ? `Provider error ${message.failureCode}` : "The provider did not deliver this message."} className="text-destructive font-semibold text-[10px] flex items-center gap-1 bg-white/90 px-1 rounded">
+                Failed{message.failureCode ? ` · ${message.failureCode}` : ""}
                 {canRetry && message.id && (
                   <button type="button" onClick={() => onRetry(message.id!)} className="underline hover:text-destructive/80 ml-0.5">
                     Retry
@@ -170,10 +169,10 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
 function eligibleSenders(chat: Chat | undefined, numbers: SenderNumber[]) {
   if (chat?.eligibleSenderNumberIds && chat.eligibleSenderNumberIds.length > 0) {
     const eligibleIds = new Set(chat.eligibleSenderNumberIds);
-    const filtered = numbers.filter((number) => number.state === "Active" && eligibleIds.has(number.id));
+    const filtered = numbers.filter((number) => number.state === "Active" && number.provider !== "META" && eligibleIds.has(number.id));
     if (filtered.length > 0) return filtered;
   }
-  const activeNumbers = numbers.filter((number) => number.state === "Active");
+  const activeNumbers = numbers.filter((number) => number.state === "Active" && number.provider !== "META");
   const filtered = activeNumbers.filter((number) => {
     if (!number.allowedTeamIds?.length) return true;
     const existingThread = chat?.conversationAssignments?.find((thread) => thread.channelNumberId === number.id);
@@ -212,16 +211,6 @@ function QueueAgeBadge({ chat }: { chat: Chat }) {
   return age === null ? null : <Badge variant={age >= 240 ? "warning" : "outline"} title="Age since the oldest unanswered customer message" className="mt-1 px-2 py-0 text-[10px]">Needs reply · {formatQueueAge(age)}</Badge>;
 }
 
-function templateBody(template?: SyncedTemplate) { return template?.components?.find((component) => component.type?.toUpperCase() === "BODY")?.text ?? ""; }
-function templateVariables(body: string) {
-  const tokens = [...body.matchAll(/\{\{([^{}]+)\}\}/g)].map((match) => match[1]);
-  if (tokens.length && tokens.every((token) => /^\d+$/.test(token))) {
-    const indexes = [...new Set(tokens.map(Number))].sort((left, right) => left - right);
-    return indexes.every((value, index) => value === index + 1) ? indexes.map(String) : [];
-  }
-  if (tokens.length && tokens.every((token) => /^[a-z][a-z0-9_]*$/.test(token))) return [...new Set(tokens)];
-  return [];
-}
 
 function IconButton({ label, children, className = "", onClick }: { label: string; children: React.ReactNode; className?: string; onClick?: () => void }) {
   return (
@@ -249,7 +238,6 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   const pendingMessageJumpId = useRef("");
   const [senderNumbers, setSenderNumbers] = useState<SenderNumber[]>(() => initialNumbers.filter((n) => n.state === "Active"));
   const [channelNumbers, setChannelNumbers] = useState<SenderNumber[]>(() => initialNumbers);
-  const [templates, setTemplates] = useState<SyncedTemplate[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [activeId, setActiveId] = useState("");
@@ -263,8 +251,10 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   const attachmentPreviewUrl = useRef("");
   const [sending, setSending] = useState(false);
   const [composerMode, setComposerMode] = useState<"reply" | "note" | "template">("reply");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [templateParameters, setTemplateParameters] = useState<string[]>([]);
+  const [twilioTemplates, setTwilioTemplates] = useState<TwilioTemplate[]>([]);
+  const [twilioTemplatesBusy, setTwilioTemplatesBusy] = useState(false);
+  const [selectedTwilioTemplateSid, setSelectedTwilioTemplateSid] = useState("");
+  const [twilioTemplateVariables, setTwilioTemplateVariables] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("All messages");
   const [filterOpen, setFilterOpen] = useState(false);
   const [stateFilter, setStateFilter] = useState("All states");
@@ -371,7 +361,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
     : latestInboundForSender?.createdAt ? new Date(new Date(latestInboundForSender.createdAt).getTime() + 24 * 60 * 60 * 1000).toISOString() : null;
   const serviceWindowOpen = Boolean(serviceWindowExpiresAt && new Date(serviceWindowExpiresAt).getTime() > windowCheckTime);
   const activeSenderEligible = Boolean(activeNumber);
-  const isTwilioSender = activeNumber?.provider === "TWILIO" || (Boolean(activeNumber) && !activeNumber?.metaPhoneNumberId);
+  const isTwilioSender = activeNumber?.provider === "TWILIO" || Boolean(activeNumber && !activeNumber.metaPhoneNumberId);
   const eligibleAssignees = activeThreadTeamId ? teams.find((team) => team.id === activeThreadTeamId)?.members ?? [] : teamMembers;
   const activeTags = activeChat?.tags ?? (activeChat?.label ? [activeChat.label] : []);
   const messageSenderIds = (activeChat?.messages ?? []).map((message) => message.senderNumberId).filter((id): id is string => Boolean(id));
@@ -382,15 +372,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   const senderChanged = Boolean(activeNumber && previousSender && activeNumber.id !== previousSender.id);
   const consentStatus = activeChat?.messagingConsent ?? "unknown";
   const replyAllowed = consentStatus === "opted_in";
-  const approvedTemplates = templates.filter((template) => template.status === "APPROVED");
-  const selectedTemplate = approvedTemplates.find((template) => template.id === selectedTemplateId);
-  const selectedTemplateBody = templateBody(selectedTemplate);
-  const selectedTemplateVariables = templateVariables(selectedTemplateBody);
-  const selectedTemplateParameterCount = selectedTemplateVariables.length;
-  const selectedTemplatePreview = selectedTemplateBody.replace(/\{\{([^{}]+)\}\}/g, (_match, variable: string) => {
-    const index = selectedTemplateVariables.indexOf(variable);
-    return index >= 0 ? templateParameters[index]?.trim() || `{{${variable}}}` : `{{${variable}}}`;
-  });
+  const selectedTwilioTemplate = twilioTemplates.find((template) => template.sid === selectedTwilioTemplateSid);
   const availableTags = useMemo(() => {
     const counts = new Map<string, number>();
     for (const chat of chats) for (const tag of chat.tags ?? (chat.label ? [chat.label] : [])) counts.set(tag, (counts.get(tag) ?? 0) + 1);
@@ -681,18 +663,21 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
   useEffect(() => {
     let disposed = false;
-    let timer: number | undefined;
-    const loadTemplates = async () => {
-      try {
-        const response = await fetch("/api/templates", { cache: "no-store" });
+    setTwilioTemplates([]);
+    setSelectedTwilioTemplateSid("");
+    setTwilioTemplateVariables({});
+    if (!activeNumber || !isTwilioSender) return;
+    setTwilioTemplatesBusy(true);
+    void fetch(`/api/twilio/templates?senderNumberId=${encodeURIComponent(activeNumber.id)}`, { cache: "no-store" })
+      .then(async (response) => {
         const data = await response.json();
-        if (!disposed && response.ok && Array.isArray(data.templates)) setTemplates(data.templates);
-      } catch { /* Template access is optional when Meta is not connected. */ }
-      finally { if (!disposed) timer = window.setTimeout(() => void loadTemplates(), 60_000); }
-    };
-    void loadTemplates();
-    return () => { disposed = true; if (timer) window.clearTimeout(timer); };
-  }, []);
+        if (!response.ok) throw new Error(data.error || "Could not load approved Twilio templates.");
+        if (!disposed) setTwilioTemplates(Array.isArray(data.templates) ? data.templates : []);
+      })
+      .catch((error) => { if (!disposed) setNotice(error instanceof Error ? error.message : "Could not load approved Twilio templates."); })
+      .finally(() => { if (!disposed) setTwilioTemplatesBusy(false); });
+    return () => { disposed = true; };
+  }, [activeNumber?.id, isTwilioSender]);
 
   async function sendMessage() {
     if ((!draft.trim() && !attachment) || !activeNumber || !activeSenderEligible || !activeChat?.detailLoaded || sending) return;
@@ -717,11 +702,34 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
         return { ...chat, preview: data.message.text || (data.message.media ? `${data.message.media.type} attachment` : text), time: data.message.time || new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }), messages };
       }));
       setDraft(""); selectAttachment(null);
-      setNotice(attachment ? "Attachment accepted by WhatsApp · delivery status will update from Meta." : data.failedOver ? `WhatsApp accepted the message from ${senderNumbers.find((number) => number.id === data.message?.senderNumberId)?.label ?? "the backup number"}.${data.transitionNoticeSent ? " A number-change notice was also sent to the customer." : " The customer was not notified; please tell them the number changed."} The original number needs admin review.` : data.delivery === "whatsapp" ? "Accepted by WhatsApp · delivery status will update from Meta." : "Saved in CRM · WhatsApp delivery is not connected yet.");
+      setNotice(attachment ? "Attachment accepted for sending · check its status in the conversation." : data.failedOver ? `The provider accepted the message from ${senderNumbers.find((number) => number.id === data.message?.senderNumberId)?.label ?? "the backup number"}.${data.transitionNoticeSent ? " A number-change notice was also sent to the customer." : " The customer was not notified; please tell them the number changed."} The original number needs admin review.` : data.delivery === "whatsapp" ? `${data.provider ?? "WhatsApp provider"} accepted the message · final delivery status will appear in the conversation.` : "Saved in CRM · WhatsApp delivery is not connected yet.");
       window.setTimeout(() => setNotice(""), 3600);
     } catch (cause) {
       if (!(cause instanceof Error) || (!cause.message.toLowerCase().includes("unknown") && !cause.message.toLowerCase().includes("check its status"))) sendKeys.current.delete(draftKey);
       setNotice(cause instanceof Error ? cause.message : "Could not save message.");
+    } finally { setSending(false); }
+  }
+
+  async function sendTwilioTemplate() {
+    if (!selectedTwilioTemplate || !activeNumber || !activeSenderEligible || !activeChat?.detailLoaded || !replyAllowed || sending) return;
+    const variables = Object.fromEntries(selectedTwilioTemplate.variables.map((key) => [key, (twilioTemplateVariables[key] ?? "").trim()]));
+    if (Object.values(variables).some((value) => !value)) { setNotice("Fill in each template value before sending."); return; }
+    const draftKey = JSON.stringify([activeId, activeNumber.id, selectedTwilioTemplate.sid, variables]);
+    const idempotencyKey = sendKeys.current.get(draftKey) ?? crypto.randomUUID();
+    sendKeys.current.set(draftKey, idempotencyKey);
+    setSending(true);
+    try {
+      const response = await fetch("/api/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chatId: activeId, senderNumberId: activeNumber.id, type: "template", contentSid: selectedTwilioTemplate.sid, contentVariables: variables, idempotencyKey }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not send approved template.");
+      sendKeys.current.delete(draftKey);
+      if (data.chat) setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, ...data.chat, detailLoaded: true, matchesFilter: chat.matchesFilter } : chat));
+      setTwilioTemplateVariables({});
+      setNotice("Twilio accepted the approved WhatsApp template. Delivery status will update in the conversation.");
+      window.setTimeout(() => setNotice(""), 3600);
+    } catch (cause) {
+      if (!(cause instanceof Error) || (!cause.message.toLowerCase().includes("unknown") && !cause.message.toLowerCase().includes("check its status"))) sendKeys.current.delete(draftKey);
+      setNotice(cause instanceof Error ? cause.message : "Could not send approved template.");
     } finally { setSending(false); }
   }
 
@@ -757,27 +765,6 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
       setNotice(data.retry?.needsReview ? "The prior retry did not finish recording its outcome. Check the message status before sending again." : data.retry?.duplicate ? "This failed message already has a retry attempt." : `A new message was sent from ${activeNumber.label}; delivery status will update shortly.`);
     } catch (cause) { setNotice(cause instanceof Error ? cause.message : "Could not retry this message."); }
     finally { setSending(false); }
-  }
-
-  async function sendTemplateMessage() {
-    if (!selectedTemplate || !activeNumber || !activeSenderEligible || !activeChat?.detailLoaded || !replyAllowed || templateParameters.length !== selectedTemplateParameterCount || templateParameters.some((value) => !value.trim())) return;
-    const draftKey = JSON.stringify([activeId, activeNumber.id, "template", selectedTemplate.id, templateParameters]);
-    const idempotencyKey = sendKeys.current.get(draftKey) ?? crypto.randomUUID();
-    sendKeys.current.set(draftKey, idempotencyKey);
-    try {
-      const namedParameters = selectedTemplateVariables.some((variable) => !/^\d+$/.test(variable));
-      const response = await fetch("/api/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chatId: activeId, senderNumberId: activeNumber.id, type: "template", templateId: selectedTemplate.id, parameters: templateParameters, ...(namedParameters ? { parameterNames: selectedTemplateVariables } : {}), idempotencyKey }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not send approved template.");
-      sendKeys.current.delete(draftKey);
-      if (data.chat) setChats((current) => current.map((chat) => chat.id === activeId ? { ...chat, ...data.chat, detailLoaded: true, matchesFilter: chat.matchesFilter } : chat));
-      setTemplateParameters([]);
-      setNotice(data.failedOver ? `WhatsApp accepted the template from ${senderNumbers.find((number) => number.id === data.message?.senderNumberId)?.label ?? "the backup number"}.${data.transitionNoticeSent ? " A number-change notice was also sent to the customer." : " The customer was not notified; please tell them the number changed."} The original number needs admin review.` : "Template accepted by WhatsApp · delivery status will update from Meta.");
-      window.setTimeout(() => setNotice(""), 3600);
-    } catch (cause) {
-      if (!(cause instanceof Error) || (!cause.message.toLowerCase().includes("unknown") && !cause.message.toLowerCase().includes("check its status"))) sendKeys.current.delete(draftKey);
-      setNotice(cause instanceof Error ? cause.message : "Could not send approved template.");
-    }
   }
 
   async function saveInternalNote() {
@@ -825,7 +812,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   }
 
   return (
-    <main className="flex h-screen min-h-[600px] overflow-hidden bg-background text-foreground font-sans flex-col">
+    <main className="flex h-screen min-h-[600px] overflow-hidden bg-muted/40 text-foreground font-sans flex-col p-2 sm:p-3">
       {notice && (
         <div className="border-b border-border bg-card p-2 px-4 shrink-0 z-50">
           <Alert variant="destructive" className="flex items-center justify-between py-2 border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
@@ -848,9 +835,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
         </div>
       )}
 
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {/* 1. Slim Left Rail (Shadcn Radix Sidebar Rail Style) */}
-        <aside className="hidden w-16 shrink-0 flex-col items-center justify-between border-r border-border bg-sidebar py-3 sm:flex select-none">
+        <aside className="hidden w-16 shrink-0 flex-col items-center justify-between border-r border-border bg-muted/30 py-3 sm:flex select-none">
           <div className="flex flex-col items-center gap-4">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -938,7 +925,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
         </aside>
 
         {/* 2. Conversations Column (WhatsApp Chat List) */}
-        <section className={`${activeId ? "hidden sm:flex" : "flex"} w-full sm:w-[360px] md:w-[390px] lg:w-[420px] shrink-0 flex-col border-r border-border bg-card h-full`}>
+        <section className={`${activeId ? "hidden sm:flex" : "flex"} w-full sm:w-[340px] md:w-[360px] lg:w-[380px] shrink-0 flex-col border-r border-border bg-card h-full`}>
           {/* Chats Header */}
           <div className="flex h-14 items-center justify-between border-b border-border bg-card/50 px-4 shrink-0">
             <h1 className="text-lg font-bold tracking-tight text-foreground">Chats</h1>
@@ -1192,7 +1179,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
       {/* 3. Right Chat Viewport */}
       {activeChat ? (
-        <section className="flex min-w-0 flex-1 flex-col h-full bg-muted/15 relative">
+        <section className="flex min-w-0 flex-1 flex-col h-full bg-background relative">
           {/* WhatsApp Chat Header */}
           <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4 shrink-0 select-none">
             <div className="flex min-w-0 items-center gap-3">
@@ -1371,8 +1358,8 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     <div className="my-8 flex justify-center">
                       <span className="rounded-lg border border-border bg-card px-4 py-2 text-xs text-muted-foreground shadow-2xs text-center max-w-sm">
                         {isTwilioSender
-                          ? "No messages in this WhatsApp number thread yet. Type a message below to start the conversation."
-                          : "No messages in this WhatsApp number thread yet. Start the conversation with an approved template below."}
+                          ? "No messages in this WhatsApp number thread yet. The customer needs to message your business first to open a reply window."
+                          : "This legacy number is unavailable while Twilio only mode is enabled."}
                       </span>
                     </div>
                   )}
@@ -1399,33 +1386,21 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
           <div className="border-t border-border bg-card p-3 shrink-0 flex flex-col gap-2.5">
             {/* Top mode bar & 24hr window status */}
             <div className="flex items-center justify-between gap-2">
-              <Tabs
-                value={composerMode}
-                onValueChange={(val) => {
-                  if (val === "template" || val === "note") {
-                    setSavedReplyOpen(false);
-                    setEmojiOpen(false);
-                    selectAttachment(null);
-                  }
-                  setComposerMode(val as "reply" | "template" | "note");
-                }}
-              >
-                <TabsList className="h-8 bg-muted/60 p-0.5">
-                  <TabsTrigger value="reply" className="text-xs h-7 px-3">Reply</TabsTrigger>
-                  <TabsTrigger value="template" className="text-xs h-7 px-3">Template</TabsTrigger>
-                  <TabsTrigger value="note" className="text-xs h-7 px-3">Internal note</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="inline-flex items-center rounded-lg border bg-muted/40 p-1">
+                <Button type="button" size="sm" variant={composerMode === "reply" ? "secondary" : "ghost"} className="h-7 px-3 text-xs" onClick={() => { setComposerMode("reply"); selectAttachment(null); }}>Reply</Button>
+                <Button type="button" size="sm" variant={composerMode === "template" ? "secondary" : "ghost"} className="h-7 px-3 text-xs" onClick={() => { setComposerMode("template"); setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); }}>Template</Button>
+                <Button type="button" size="sm" variant={composerMode === "note" ? "secondary" : "ghost"} className="h-7 px-3 text-xs" onClick={() => { setComposerMode("note"); setSavedReplyOpen(false); setEmojiOpen(false); selectAttachment(null); }}>Internal note</Button>
+              </div>
 
               {composerMode === "reply" && replyAllowed && activeNumber && (
                 <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   <Clock3 className="size-3 text-primary" />
                   <span>
                     {isTwilioSender
-                      ? "Twilio WhatsApp connected"
+                      ? serviceWindowOpen ? "24hr reply window open" : "Twilio connected · customer reply window closed"
                       : serviceWindowOpen
                       ? `24hr window open${serviceWindowExpiresAt ? ` until ${new Date(serviceWindowExpiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}`
-                      : "Window closed · use template"}
+                      : "Window closed · send an approved template"}
                   </span>
                 </div>
               )}
@@ -1491,65 +1466,31 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
               </div>
             )}
 
-            {/* Template Mode Form */}
-            {composerMode === "template" ? (
-              <div className="rounded-lg bg-card p-3 border border-border flex flex-col gap-2">
-                <label className="text-xs font-semibold text-foreground">
-                  Approved WhatsApp Template
-                  <SelectControl
-                    value={selectedTemplateId}
-                    onChange={(event) => {
-                      const id = event.target.value;
-                      setSelectedTemplateId(id);
-                      const item = approvedTemplates.find((template) => template.id === id);
-                      setTemplateParameters(Array.from({ length: templateVariables(templateBody(item)).length }, () => ""));
-                    }}
-                    className="mt-1 h-9 rounded-lg border border-border bg-card px-3 text-xs w-full text-foreground"
-                  >
-                    <option value="">Select a template</option>
-                    {approvedTemplates.map((template) => (
-                      <option key={template.id} value={template.id}>{template.name} · {template.language}</option>
-                    ))}
-                  </SelectControl>
-                </label>
-                {selectedTemplate && selectedTemplateParameterCount > 0 && (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {templateParameters.map((value, index) => {
-                      const variable = selectedTemplateVariables[index];
-                      return (
-                        <label key={`${selectedTemplate.id}-${variable}`} className="text-xs font-medium text-muted-foreground">
-                          Value for {`{{${variable}}}`}
-                          <Input
-                            value={value}
-                            maxLength={1024}
-                            onChange={(event) => setTemplateParameters((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))}
-                            placeholder={`Value for ${variable}`}
-                            className="mt-1 h-8 text-xs bg-muted/40"
-                          />
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-                {selectedTemplate && (
-                  <div className="rounded-lg bg-muted/40 p-2.5 text-xs text-foreground border border-border">
-                    <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                      Preview · {selectedTemplate.category}
-                    </span>
-                    {selectedTemplatePreview || "No text preview"}
-                  </div>
-                )}
-                <div className="flex justify-end pt-1">
-                  <Button
-                    onClick={() => void sendTemplateMessage()}
-                    disabled={sending || !selectedTemplate || !replyAllowed || !activeNumber || !activeSenderEligible || templateParameters.length !== selectedTemplateParameterCount || templateParameters.some((value) => !value.trim())}
-                    className="rounded-lg px-4 text-xs font-semibold"
-                  >
-                    {sending ? "Sending…" : "Send template"}
-                  </Button>
+            {composerMode === "template" && (
+              <div className="rounded-xl border border-border bg-background p-4 shadow-xs">
+                <div className="mb-3">
+                  <p className="text-sm font-semibold">Approved WhatsApp template</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Use this when the 24 hour reply window is closed. Templates must be approved for WhatsApp in Twilio.</p>
                 </div>
+                {twilioTemplatesBusy ? <p className="py-3 text-xs text-muted-foreground">Loading approved templates from Twilio…</p> : twilioTemplates.length ? (
+                  <div className="space-y-3">
+                    <label className="block text-xs font-medium">Template
+                      <SelectControl value={selectedTwilioTemplateSid} onChange={(event) => { setSelectedTwilioTemplateSid(event.target.value); setTwilioTemplateVariables({}); }} className="mt-1 h-9 w-full rounded-md border bg-card px-3 text-xs">
+                        <option value="">Choose an approved template</option>
+                        {twilioTemplates.map((template) => <option key={template.sid} value={template.sid}>{template.name}{template.language ? ` · ${template.language}` : ""}</option>)}
+                      </SelectControl>
+                    </label>
+                    {selectedTwilioTemplate?.body && <p className="rounded-lg bg-muted/50 p-3 text-xs leading-relaxed text-muted-foreground">{selectedTwilioTemplate.body}</p>}
+                    {selectedTwilioTemplate?.variables.map((key) => <label key={key} className="block text-xs font-medium">Value for {`{{${key}}}`}<Input className="mt-1 h-9" value={twilioTemplateVariables[key] ?? ""} onChange={(event) => setTwilioTemplateVariables((current) => ({ ...current, [key]: event.target.value }))} maxLength={1024} /></label>)}
+                    <div className="flex justify-end"><Button type="button" size="sm" disabled={sending || !selectedTwilioTemplate || !replyAllowed || !activeNumber || !activeSenderEligible || selectedTwilioTemplate.variables.some((key) => !twilioTemplateVariables[key]?.trim())} onClick={() => void sendTwilioTemplate()}>{sending ? "Sending…" : "Send template"}</Button></div>
+                  </div>
+                ) : <div className="rounded-lg border border-dashed p-4 text-center"><p className="text-xs font-medium">No approved WhatsApp templates found for this Twilio account.</p><p className="mt-1 text-[11px] text-muted-foreground">Create and submit a Content Template for WhatsApp in Twilio Console, then refresh or switch senders.</p></div>}
               </div>
-            ) : (
+            )}
+
+            {composerMode !== "template" && (
+            <>
+            {/* Twilio text reply composer */}
               /* Reply / Note Main Bar */
               <div className="flex items-end gap-2 rounded-xl border border-border bg-background p-2 shadow-2xs focus-within:ring-1 focus-within:ring-ring transition-all">
                 {/* Left WhatsApp Icons */}
@@ -1562,15 +1503,6 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     aria-label="Emoji"
                   >
                     <Smile className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 rounded-lg text-muted-foreground hover:text-foreground"
-                    onClick={() => attachmentInput.current?.click()}
-                    aria-label="Attach file"
-                  >
-                    <Paperclip className="size-4" />
                   </Button>
                   <Button
                     variant="ghost"
@@ -1589,7 +1521,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     ref={draftInputRef}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    disabled={!activeChat.detailLoaded || (composerMode === "reply" && (!replyAllowed || !activeNumber || !activeSenderEligible || (!isTwilioSender && !serviceWindowOpen)))}
+                    disabled={!activeChat.detailLoaded || (composerMode === "reply" && (!replyAllowed || !activeNumber || !activeSenderEligible || !serviceWindowOpen))}
                     onKeyDown={(event) => {
                       if (composerMode === "reply" && (event.key === " " || event.key === "Tab")) {
                         const match = /(?:^|\s);([a-z0-9_-]{1,24})$/i.exec(draft);
@@ -1615,8 +1547,8 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                         ? "No active WhatsApp sender number selected"
                         : !replyAllowed
                         ? "Replies disabled until opt-in is recorded"
-                        : !isTwilioSender && !serviceWindowOpen
-                        ? "24hr customer service window closed · switch to Template"
+                        : !serviceWindowOpen
+                        ? "Customer service window closed · use an approved template"
                         : "Type a message"
                     }
                     rows={1}
@@ -1670,7 +1602,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                     sending || !activeChat.detailLoaded ||
                     (composerMode === "note"
                       ? !draft.trim()
-                      : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || (!isTwilioSender && !serviceWindowOpen))
+                      : (!draft.trim() && !attachment) || !replyAllowed || !activeNumber || !activeSenderEligible || (composerMode === "reply" && !serviceWindowOpen))
                   }
                   onClick={() => (composerMode === "note" ? void saveInternalNote() : void sendMessage())}
                   className={cn(
@@ -1684,6 +1616,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
                   <Send className="size-4" />
                 </Button>
               </div>
+            </>
             )}
           </div>
         </section>

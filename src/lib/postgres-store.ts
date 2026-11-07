@@ -72,7 +72,7 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
   const conversationResult = await client.query<Row>(`SELECT c."id", c."contactId", c."channelNumberId", c."state", c."unreadCount", c."lastMessageAt", c."serviceWindowExpiresAt", c."updatedAt", c."assignedUserId", u."name" AS "assignedTo",c."assignedTeamId",t."name" AS "assignedTeam"
       FROM "Conversation" c LEFT JOIN "User" u ON u."id" = c."assignedUserId" LEFT JOIN "Team" t ON t."id"=c."assignedTeamId"
       WHERE c."workspaceId" = $1${contactIds === undefined ? "" : ` AND c."contactId"=ANY($2::text[])`} ORDER BY c."lastMessageAt" DESC, c."updatedAt" DESC`, contactParams);
-  const messageResult = await client.query<Row>(`SELECT m."id",m."contactId",m."channelNumberId",m."direction",m."status",m."failureClass",m."messageType",m."textBody",m."media",m."createdAt",a."storageStatus" AS "attachmentStorageStatus",a."sizeBytes" AS "attachmentSizeBytes"
+  const messageResult = await client.query<Row>(`SELECT m."id",m."contactId",m."channelNumberId",m."direction",m."status",m."failureClass",m."failureCode",m."messageType",m."textBody",m."media",m."createdAt",a."storageStatus" AS "attachmentStorageStatus",a."sizeBytes" AS "attachmentSizeBytes"
       FROM "Message" m LEFT JOIN "MessageAttachment" a ON a."messageId"=m."id" WHERE m."workspaceId"=$1 AND m."direction"<>'INTERNAL'${contactIds === undefined ? "" : ` AND m."contactId"=ANY($2::text[])`} ORDER BY m."createdAt",m."id"`, contactParams);
   const noteResult = await client.query<Row>(`SELECT n."id", n."contactId", n."text", n."createdAt", u."name" AS "author"
       FROM "InternalNote" n LEFT JOIN "User" u ON u."id" = n."authorUserId"
@@ -144,6 +144,7 @@ async function loadStore(client: PoolClient, workspaceId: string, contactIds?: s
         mine: message.direction === "OUTBOUND", senderNumberId: string(message.channelNumberId),
         status: ({ QUEUED: "queued", SENDING: "queued", SENT: "sent", DELIVERED: "delivered", READ: "read", FAILED: "failed", UNKNOWN: "unknown" } as Record<string, "queued" | "sent" | "delivered" | "read" | "failed" | "unknown">)[string(message.status)] ?? "queued",
         failureClass: nullableString(message.failureClass),
+        failureCode: nullableString(message.failureCode),
       };
     });
     const conversations = conversationsByContact.get(id) ?? [];

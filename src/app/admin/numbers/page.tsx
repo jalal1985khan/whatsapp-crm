@@ -14,7 +14,6 @@ export default async function NumbersPage() {
   let failoverCooldownMinutes = 60;
   let failoverRequiresApproval = false;
   let failoverNotificationTemplateId: string | null = null;
-  let connectedAccountAvailable = false;
   const initialConnectionChecks: Record<string, MetaConnectionCheck> = {};
   if (process.env.DATABASE_URL) {
     try {
@@ -24,8 +23,6 @@ export default async function NumbersPage() {
       failoverCooldownMinutes = Number(result.rows[0]?.failoverCooldownMinutes ?? 60);
       failoverRequiresApproval = Boolean(result.rows[0]?.failoverRequiresApproval);
       failoverNotificationTemplateId = result.rows[0]?.failoverNotificationTemplateId == null ? null : String(result.rows[0].failoverNotificationTemplateId);
-      const connections = await getPostgresPool().query<QueryResultRow>(`SELECT 1 FROM "WhatsAppConnection" WHERE "workspaceId"=$1 AND "status"='ACTIVE' AND ("tokenExpiresAt" IS NULL OR "tokenExpiresAt">CURRENT_TIMESTAMP) LIMIT 1`, [getWorkspaceId()]);
-      connectedAccountAvailable = connections.rows.length > 0;
       const checks = await getPostgresPool().query<QueryResultRow>(`SELECT DISTINCT ON ("targetId") "targetId","details","createdAt" FROM "AuditEvent"
         WHERE "workspaceId"=$1 AND "targetType"='CHANNEL_NUMBER' AND "action" IN ('CHANNEL_NUMBER_CONNECTION_CHECKED','CHANNEL_NUMBER_ACTIVATION_CHECKED')
         ORDER BY "targetId","createdAt" DESC,"id" DESC`, [getWorkspaceId()]);
@@ -48,7 +45,8 @@ export default async function NumbersPage() {
       initialNumbers={snapshot.numbers}
       initialTwilioAccounts={twilioAccounts}
       initialConnectionChecks={initialConnectionChecks}
-      liveSendingEnabled={Boolean(process.env.DATABASE_URL && (process.env.META_ACCESS_TOKEN || connectedAccountAvailable || twilioAccounts.length > 0 || process.env.TWILIO_ACCOUNT_SID))}
+      liveSendingEnabled={Boolean(process.env.DATABASE_URL && (twilioAccounts.length > 0 || process.env.TWILIO_ACCOUNT_SID))}
+      publicAppUrl={process.env.APP_BASE_URL || "https://your-crm-domain.com"}
       initialAutoFailoverEnabled={autoFailoverEnabled}
       initialNotificationTemplateId={failoverNotificationTemplateId}
       initialFailoverMaxAttempts={failoverMaxAttempts}

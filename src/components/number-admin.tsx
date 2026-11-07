@@ -112,6 +112,7 @@ export function NumberAdmin({
   initialTwilioAccounts = [],
   initialConnectionChecks,
   liveSendingEnabled,
+  publicAppUrl,
   initialAutoFailoverEnabled,
   initialNotificationTemplateId,
   initialFailoverMaxAttempts,
@@ -122,6 +123,7 @@ export function NumberAdmin({
   initialTwilioAccounts?: TwilioAccountItem[];
   initialConnectionChecks: Record<string, MetaConnectionCheck>;
   liveSendingEnabled: boolean;
+  publicAppUrl: string;
   initialAutoFailoverEnabled: boolean;
   initialNotificationTemplateId: string | null;
   initialFailoverMaxAttempts: number;
@@ -139,7 +141,6 @@ export function NumberAdmin({
   );
 
   // Form states
-  const [selectedProvider, setSelectedProvider] = useState<"TWILIO" | "META">("TWILIO");
   const [label, setLabel] = useState("");
   const [number, setNumber] = useState("");
 
@@ -160,8 +161,6 @@ export function NumberAdmin({
   const [standaloneTesting, setStandaloneTesting] = useState(false);
 
   // Meta states
-  const [metaPhoneNumberId, setMetaPhoneNumberId] = useState("");
-  const [metaWabaId, setMetaWabaId] = useState("");
 
   // Feedback states
   const [error, setError] = useState("");
@@ -203,9 +202,7 @@ export function NumberAdmin({
   const [metaConnecting, setMetaConnecting] = useState(false);
   const [connectionChecks, setConnectionChecks] = useState<Record<string, MetaConnectionCheck>>(initialConnectionChecks);
 
-  const webhookUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/api/webhooks/twilio`
-    : "https://crm.storeshop.biz/api/webhooks/twilio";
+  const webhookUrl = `${publicAppUrl.replace(/\/$/, "")}/api/webhooks/twilio`;
 
   const copyWebhookUrl = () => {
     void navigator.clipboard.writeText(webhookUrl);
@@ -297,20 +294,15 @@ export function NumberAdmin({
       const payload: Record<string, unknown> = {
         label,
         number,
-        provider: selectedProvider,
+        provider: "TWILIO",
       };
 
-      if (selectedProvider === "TWILIO") {
-        if (selectedTwilioAccountId && selectedTwilioAccountId !== "new") {
-          payload.twilioAccountId = selectedTwilioAccountId;
-        } else {
-          payload.twilioAccountName = newTwilioAccountName;
-          payload.twilioAccountSid = newTwilioAccountSid;
-          payload.twilioAuthToken = newTwilioAuthToken;
-        }
+      if (selectedTwilioAccountId && selectedTwilioAccountId !== "new") {
+        payload.twilioAccountId = selectedTwilioAccountId;
       } else {
-        payload.metaPhoneNumberId = metaPhoneNumberId;
-        payload.metaWabaId = metaWabaId;
+        payload.twilioAccountName = newTwilioAccountName;
+        payload.twilioAccountSid = newTwilioAccountSid;
+        payload.twilioAuthToken = newTwilioAuthToken;
       }
 
       const response = await fetch("/api/numbers", {
@@ -324,20 +316,12 @@ export function NumberAdmin({
       setNumbers((current) => [...current, data.number]);
       setLabel("");
       setNumber("");
-      setMetaPhoneNumberId("");
-      setMetaWabaId("");
       setNewTwilioAccountName("");
       setNewTwilioAccountSid("");
       setNewTwilioAuthToken("");
 
-      if (selectedProvider === "TWILIO") {
-        await refreshAccounts();
-        setNotice(
-          `Twilio WhatsApp number ${data.number.number} added and activated! Don't forget to set the Webhook URL in your Twilio Console.`,
-        );
-      } else {
-        setNotice("Meta number added as pending approval.");
-      }
+      await refreshAccounts();
+      setNotice(`Twilio WhatsApp number ${data.number.number} added. Set the inbound and status webhook URLs in Twilio Console.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not add number.");
     } finally {
@@ -391,15 +375,31 @@ export function NumberAdmin({
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">WhatsApp Senders & Twilio Accounts</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">WhatsApp numbers</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Configure multiple WhatsApp numbers across your Twilio and Meta accounts.
+            Manage approved senders, Twilio accounts, and inbox routing.
           </p>
         </div>
         <Badge variant="success" className="gap-1.5 py-1 px-3">
           <Wifi className="size-3.5" />
           Twilio Ready · Multi-Account
         </Badge>
+      </div>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        {[
+          { label: "Active senders", value: numbers.filter((item) => item.state === "Active" && (item.provider === "TWILIO" || (!item.metaPhoneNumberId && !item.metaWabaId))).length, detail: "Available to your inbox team" },
+          { label: "Twilio accounts", value: twilioAccounts.length, detail: "Credential sets connected" },
+          { label: "Paused senders", value: numbers.filter((item) => item.state === "Paused").length, detail: "Not currently selected for messaging" },
+        ].map((metric) => (
+          <Card key={metric.label} className="border-border/80 shadow-xs">
+            <CardContent className="p-4">
+              <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{metric.value}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{metric.detail}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
         {notice && (
@@ -425,7 +425,7 @@ export function NumberAdmin({
                   <h2 className="text-sm font-semibold text-foreground">Twilio WhatsApp Webhook Configuration</h2>
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground max-w-2xl">
-                  For every WhatsApp number in your Twilio Console (under <strong>Develop → Messaging → Senders → WhatsApp senders</strong> or <strong>Phone Numbers → Active numbers</strong>), set <em>&quot;WHEN A MESSAGE COMES IN&quot;</em> to <strong>HTTP POST</strong> with this URL:
+                  For each WhatsApp sender, set <em>&quot;WHEN A MESSAGE COMES IN&quot;</em> to this CRM URL using <strong>HTTP POST</strong>. Set its status callback to <code>/api/webhooks/twilio/status</code> as well. The public URL must match the app&apos;s <code>APP_BASE_URL</code> exactly:
                 </p>
                 <div className="mt-3 flex items-center gap-2 max-w-xl">
                   <code className="flex-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-mono font-medium text-foreground select-all">
@@ -539,7 +539,7 @@ export function NumberAdmin({
                 Active numbers can send and receive WhatsApp messages in the shared inbox.
               </p>
             </div>
-            <Badge variant="secondary">{numbers.length} total</Badge>
+            <Badge variant="secondary">{numbers.filter((number) => number.provider === "TWILIO").length} Twilio senders</Badge>
           </div>
           <Separator />
           <div className="divide-y">
@@ -587,7 +587,7 @@ export function NumberAdmin({
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-semibold">{item.label}</div>
                           <Badge variant={isTwilio ? "secondary" : "outline"} className="text-[10px] px-1.5 py-0 h-4">
-                            {isTwilio ? "Twilio" : "Meta"}
+                            {isTwilio ? "Twilio" : "Unavailable · legacy"}
                           </Badge>
                           <Button
                             variant="ghost"
@@ -613,7 +613,7 @@ export function NumberAdmin({
                             </strong>
                           </span>
                         ) : (
-                          <span>Meta Phone ID: {item.metaPhoneNumberId || "not configured"}</span>
+                          <span>Unavailable for sending while Twilio only mode is enabled</span>
                         )}
                         {" · "}Priority {index + 1}
                       </div>
@@ -700,32 +700,9 @@ export function NumberAdmin({
                 <div>
                   <CardTitle className="text-sm font-semibold">Add WhatsApp Number</CardTitle>
                   <CardDescription className="text-xs">
-                    Connect a new number to route WhatsApp conversations through Twilio or Meta.
+                    Add an approved Twilio WhatsApp sender to this workspace.
                   </CardDescription>
                 </div>
-              </div>
-              {/* Provider Selector Tabs */}
-              <div className="flex rounded-lg border bg-muted p-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedProvider("TWILIO")}
-                  className={cn(
-                    "rounded-md px-3 py-1 text-xs font-medium transition",
-                    selectedProvider === "TWILIO" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Twilio WhatsApp
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedProvider("META")}
-                  className={cn(
-                    "rounded-md px-3 py-1 text-xs font-medium transition",
-                    selectedProvider === "META" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Meta Cloud API
-                </button>
               </div>
             </div>
           </CardHeader>
@@ -753,8 +730,6 @@ export function NumberAdmin({
               />
             </label>
 
-            {selectedProvider === "TWILIO" ? (
-              <>
                 <div className="md:col-span-2">
                   <label className="flex flex-col gap-1.5 text-xs font-medium">
                     Twilio Account
@@ -807,29 +782,6 @@ export function NumberAdmin({
                     </label>
                   </>
                 )}
-              </>
-            ) : (
-              <>
-                <label className="flex flex-col gap-1.5 text-xs font-medium">
-                  Meta phone number ID
-                  <Input
-                    required
-                    value={metaPhoneNumberId}
-                    onChange={(event) => setMetaPhoneNumberId(event.target.value)}
-                    placeholder="Meta Phone Number ID"
-                  />
-                </label>
-                <label className="flex flex-col gap-1.5 text-xs font-medium">
-                  WhatsApp Business Account ID
-                  <Input
-                    required
-                    value={metaWabaId}
-                    onChange={(event) => setMetaWabaId(event.target.value)}
-                    placeholder="WABA ID"
-                  />
-                </label>
-              </>
-            )}
 
             <div className="md:col-span-2 flex justify-end mt-2">
               <Button type="submit" disabled={busy} className="bg-primary">

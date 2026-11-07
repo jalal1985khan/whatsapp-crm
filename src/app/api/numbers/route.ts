@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createChannelNumber, getCrmSnapshot } from "@/lib/crm-store";
+import { getCrmSnapshot } from "@/lib/crm-store";
 import { requireOwner } from "@/lib/auth";
 import { getPostgresPool, getWorkspaceId, ensureWorkspace } from "@/lib/postgres-pool";
 import { saveTwilioAccount, testTwilioConnection, listTwilioAccounts } from "@/lib/twilio-credentials";
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: "Administrator sign-in required." }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as {
-    provider?: "TWILIO" | "META";
+    provider?: string;
     label?: string;
     number?: string;
     // Twilio
@@ -39,6 +39,10 @@ export async function POST(request: NextRequest) {
     metaWabaId?: string;
   } | null;
 
+  if (body?.provider === "META" || body?.metaPhoneNumberId || body?.metaWabaId) {
+    return NextResponse.json({ error: "This workspace is currently configured for Twilio only. Add a Twilio WhatsApp sender." }, { status: 400 });
+  }
+
   if (!body?.number?.trim()) {
     return NextResponse.json({ error: "Phone number is required." }, { status: 400 });
   }
@@ -46,20 +50,6 @@ export async function POST(request: NextRequest) {
   const normalized = body.number.replace(/[\s()-]/g, "");
   if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
     return NextResponse.json({ error: "Enter a phone number in international format, such as +14155550123." }, { status: 400 });
-  }
-
-  const isMeta = body.provider === "META" || Boolean(body.metaPhoneNumberId && body.metaWabaId);
-
-  if (isMeta) {
-    if (!body.metaPhoneNumberId?.trim() || !body.metaWabaId?.trim()) {
-      return NextResponse.json({ error: "Meta numbers require both an onboarded Meta phone number ID and WABA ID." }, { status: 400 });
-    }
-    try {
-      const number = await createChannelNumber(body.label || "", body.number, body.metaPhoneNumberId, body.metaWabaId);
-      return NextResponse.json({ number }, { status: 201 });
-    } catch (error) {
-      return NextResponse.json({ error: error instanceof Error ? error.message : "Could not add Meta number." }, { status: 400 });
-    }
   }
 
   // --- Twilio Flow ---
@@ -148,11 +138,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Fallback to local store for demo mode
-  try {
-    const number = await createChannelNumber(body.label || "", body.number);
-    return NextResponse.json({ number }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Could not add number." }, { status: 400 });
-  }
+  return NextResponse.json({ error: "PostgreSQL is required to add live Twilio WhatsApp senders." }, { status: 503 });
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { retryConfirmedMessage } from "@/lib/meta-whatsapp";
 import { getPostgresPool, getWorkspaceId } from "@/lib/postgres-pool";
 import { canSendOnConversation, getScopedInboxSnapshot } from "@/lib/inbox-access";
 import { getTwilioCredentialsForNumber } from "@/lib/twilio-credentials";
@@ -64,19 +63,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         senderNumberId: body.senderNumberId,
         text: message.textBody || "",
         idempotencyKey: retryKey,
+        statusCallbackUrl: new URL("/api/webhooks/twilio/status", process.env.APP_BASE_URL || request.url).toString(),
       });
       retryResult = { id: sent.id, status: sent.status, duplicate: sent.duplicate };
-    } else {
-      // Meta Cloud API retry
-      const metaRetry = await retryConfirmedMessage({
-        messageId: id,
-        senderNumberId: body.senderNumberId,
-        actorUserId: session.userId,
-        sourceIp,
-        userAgent: request.headers.get("user-agent") ?? undefined,
-      });
-      retryResult = metaRetry;
-    }
+    } else return NextResponse.json({ error: "This number is unavailable while Twilio only mode is enabled." }, { status: 409 });
 
     const snapshot = await getScopedInboxSnapshot(session, [message.contactId]);
     const sourceChat = snapshot.chats.find((chat) => chat.id === message.contactId);

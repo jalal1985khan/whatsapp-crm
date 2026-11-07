@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addLocalMessage } from "@/lib/crm-store";
+import { getCrmSnapshot } from "@/lib/crm-store";
 import { getSession } from "@/lib/auth";
-import { sendCloudMediaMessage, sendCloudTemplateMessage, sendCloudTextMessage } from "@/lib/meta-whatsapp";
-import { metaTokenForNumber } from "@/lib/meta-credentials";
 import { getTwilioCredentialsForNumber } from "@/lib/twilio-credentials";
 import { sendTwilioTextMessage } from "@/lib/twilio-whatsapp";
 import { canSendOnConversation } from "@/lib/inbox-access";
@@ -22,37 +20,31 @@ export async function POST(request: NextRequest) {
     if (!chatId || !senderNumberId || !idempotencyKey || idempotencyKey.length > 128 || !(file instanceof File)) return NextResponse.json({ error: "Customer, sender number, attachment, and send key are required." }, { status: 400 });
     if (!(await canSendOnConversation(session, chatId, senderNumberId))) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
     if (caption.length > 1024) return NextResponse.json({ error: "Attachment captions must be 1,024 characters or fewer." }, { status: 400 });
-    const mimeType = file.type.toLowerCase();
-    const limits: Record<string, number> = { "image/jpeg": 5 * 1024 * 1024, "image/png": 5 * 1024 * 1024, "video/mp4": 16 * 1024 * 1024, "audio/aac": 16 * 1024 * 1024, "audio/mp4": 16 * 1024 * 1024, "audio/mpeg": 16 * 1024 * 1024, "audio/amr": 16 * 1024 * 1024, "audio/ogg": 16 * 1024 * 1024, "application/pdf": 25 * 1024 * 1024, "text/plain": 25 * 1024 * 1024, "application/msword": 25 * 1024 * 1024, "application/vnd.ms-excel": 25 * 1024 * 1024, "application/vnd.ms-powerpoint": 25 * 1024 * 1024, "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 25 * 1024 * 1024, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": 25 * 1024 * 1024, "application/vnd.openxmlformats-officedocument.presentationml.presentation": 25 * 1024 * 1024 };
-    if (!limits[mimeType]) return NextResponse.json({ error: "Choose a supported JPEG/PNG image, MP4 video, WhatsApp audio type, PDF, text, Word, Excel, or PowerPoint file." }, { status: 400 });
-    if (!file.size || file.size > limits[mimeType]) return NextResponse.json({ error: `This ${mimeType.startsWith("image/") ? "image" : mimeType.startsWith("audio/") ? "audio" : mimeType.startsWith("video/") ? "video" : "document"} exceeds the supported size limit.` }, { status: 413 });
-    if (mimeType.startsWith("audio/") && caption) return NextResponse.json({ error: "WhatsApp audio attachments do not support captions. Remove the caption and send again." }, { status: 400 });
-    if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Attachment sending requires PostgreSQL and an authorized Meta Cloud API connection." }, { status: 503 });
-    try {
-      const sent = await sendCloudMediaMessage({ contactId: chatId, senderNumberId, file: new Uint8Array(await file.arrayBuffer()), mimeType, filename: file.name.replace(/[\\/\u0000-\u001f]/g, "_").slice(0, 255) || "attachment", caption, idempotencyKey });
-      const snapshot = await getScopedInboxSnapshot(session, [chatId]); const chat = snapshot.chats.find((item) => item.id === chatId);
-      return NextResponse.json({ chat, message: chat?.messages.find((item) => item.id === sent.id), delivery: "whatsapp", status: sent.status }, { headers: { "Cache-Control": "no-store" } });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not send attachment.";
-      return NextResponse.json({ error: message, uncertain: message.toLowerCase().includes("unknown") }, { status: message.toLowerCase().includes("unknown") ? 409 : 400 });
-    }
+    return NextResponse.json({ error: "Twilio media attachment sending is not enabled yet. Send a text message instead." }, { status: 501 });
   }
-  const body = await request.json().catch(() => null) as { chatId?: string; text?: string; senderNumberId?: string; idempotencyKey?: string; type?: "text" | "template"; templateId?: string; parameters?: string[]; parameterNames?: string[] } | null;
+  const body = await request.json().catch(() => null) as { chatId?: string; text?: string; senderNumberId?: string; idempotencyKey?: string; type?: "text" | "template"; contentSid?: string; contentVariables?: Record<string, string> } | null;
   if (!body?.chatId || !body.senderNumberId) return NextResponse.json({ error: "Customer and sender number are required." }, { status: 400 });
   if (!(await canSendOnConversation(session, body.chatId, body.senderNumberId))) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   const isTemplate = body.type === "template";
-  if (isTemplate && (!body.templateId || !Array.isArray(body.parameters) || body.parameters.some((value) => typeof value !== "string") || (body.parameterNames !== undefined && (!Array.isArray(body.parameterNames) || body.parameterNames.some((value) => typeof value !== "string"))))) return NextResponse.json({ error: "Choose an approved template and provide its text values." }, { status: 400 });
+  if (isTemplate && (!body.contentSid || !/^HX[a-fA-F0-9]{32}$/.test(body.contentSid) || (body.contentVariables !== undefined && (!body.contentVariables || typeof body.contentVariables !== "object" || Array.isArray(body.contentVariables) || Object.values(body.contentVariables).some((value) => typeof value !== "string"))))) return NextResponse.json({ error: "Choose an approved Twilio template and provide its text values." }, { status: 400 });
   if (!isTemplate && !body.text?.trim()) return NextResponse.json({ error: "Enter a message." }, { status: 400 });
   if (!isTemplate && body.text!.trim().length > 4096) return NextResponse.json({ error: "Text messages must be 4,096 characters or fewer." }, { status: 400 });
   try {
     const twilioCreds = body.senderNumberId ? await getTwilioCredentialsForNumber(body.senderNumberId) : null;
-    if (twilioCreds) {
+    const sender = (await getCrmSnapshot()).numbers.find((number) => number.id === body.senderNumberId);
+    const isTwilioNumber = sender?.provider === "TWILIO" || (!sender?.provider && Boolean(twilioCreds));
+    if (!isTwilioNumber) return NextResponse.json({ error: "This number is not configured as a Twilio sender. Ask an administrator to add an approved Twilio number." }, { status: 409 });
+    if (isTwilioNumber) {
+      if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Live Twilio sending requires PostgreSQL. This message was not sent; configure the production database first." }, { status: 503 });
+      if (!twilioCreds) return NextResponse.json({ error: "This sender is configured for Twilio, but its Twilio Account SID and Auth Token are unavailable. Reconnect its account in Admin → WhatsApp numbers." }, { status: 503 });
       if (!body.idempotencyKey || body.idempotencyKey.length > 128) return NextResponse.json({ error: "A message idempotency key is required for live WhatsApp sending." }, { status: 400 });
       const sent = await sendTwilioTextMessage({
         contactId: body.chatId,
         senderNumberId: body.senderNumberId,
-        text: body.text!.trim(),
+        text: body.text?.trim(),
+        ...(isTemplate ? { contentSid: body.contentSid, contentVariables: body.contentVariables ?? {} } : {}),
         idempotencyKey: body.idempotencyKey,
+        statusCallbackUrl: new URL("/api/webhooks/twilio/status", process.env.APP_BASE_URL || request.nextUrl.origin).toString(),
       });
       const snapshot = await getScopedInboxSnapshot(session, [body.chatId]);
       const chat = snapshot.chats.find((item) => item.id === body.chatId);
@@ -60,24 +52,13 @@ export async function POST(request: NextRequest) {
         chat,
         message: chat?.messages.find((item) => item.id === sent.id),
         delivery: "whatsapp",
+        provider: "Twilio",
         status: sent.status,
         duplicate: sent.duplicate,
       }, { headers: { "Cache-Control": "no-store" } });
     }
 
-    const accessToken = body.senderNumberId ? await metaTokenForNumber(body.senderNumberId) : null;
-    if (accessToken) {
-      if (!body.idempotencyKey || body.idempotencyKey.length > 128) return NextResponse.json({ error: "A message idempotency key is required for live WhatsApp sending." }, { status: 400 });
-      const sent = isTemplate
-        ? await sendCloudTemplateMessage({ contactId: body.chatId, senderNumberId: body.senderNumberId, templateId: body.templateId!, parameters: body.parameters!, parameterNames: body.parameterNames, idempotencyKey: body.idempotencyKey })
-        : await sendCloudTextMessage({ contactId: body.chatId, senderNumberId: body.senderNumberId, text: body.text!.trim(), idempotencyKey: body.idempotencyKey });
-      const snapshot = await getScopedInboxSnapshot(session, [body.chatId]);
-      const chat = snapshot.chats.find((item) => item.id === body.chatId);
-      return NextResponse.json({ chat, message: chat?.messages.find((item) => item.id === sent.id), delivery: "whatsapp", status: sent.status, duplicate: sent.duplicate, failedOver: sent.failedOver ?? false, transitionNoticeAttempted: sent.transitionNoticeAttempted ?? false, transitionNoticeSent: sent.transitionNoticeSent ?? false }, { headers: { "Cache-Control": "no-store" } });
-    }
-    if (isTemplate) return NextResponse.json({ error: "Approved template sending requires PostgreSQL and Meta Cloud API credentials." }, { status: 503 });
-    const result = await addLocalMessage(body.chatId, body.text!.trim(), body.senderNumberId);
-    return NextResponse.json({ ...result, delivery: "local-demo" });
+    return NextResponse.json({ error: "Twilio sending could not be configured for this number. This message was not sent." }, { status: 503 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save message.";
     const uncertain = message.toLowerCase().includes("outcome is unknown") || message.toLowerCase().includes("pending or uncertain");
