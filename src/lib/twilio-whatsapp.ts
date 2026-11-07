@@ -83,9 +83,13 @@ export async function sendTwilioTextMessage(input: {
     if (!approvalResponse.ok) throw new Error(approval.message || "Could not verify the Twilio template approval status.");
     if (approval.whatsapp?.status?.toLowerCase() !== "approved") throw new Error("This WhatsApp template is not approved for sending.");
     const contentResponse = await fetch(`https://content.twilio.com/v1/Content/${encodeURIComponent(input.contentSid)}`, { headers: { Authorization: authorization }, signal: AbortSignal.timeout(10_000), cache: "no-store" });
-    const content = await contentResponse.json() as { types?: Record<string, { body?: string }> };
+    const content = await contentResponse.json() as { types?: Record<string, { body?: string; text?: string }> };
     if (!contentResponse.ok) throw new Error("Could not load the selected Twilio template content.");
-    const templateText = content.types?.["twilio/text"]?.body ?? content.types?.["whatsapp/text"]?.body ?? "";
+    const templateText = content.types?.["twilio/text"]?.body
+      ?? content.types?.["whatsapp/text"]?.body
+      ?? content.types?.["twilio/text"]?.text
+      ?? Object.values(content.types ?? {}).find((contentType) => contentType.body)?.body
+      ?? "";
     const requiredVariables = [...new Set([...templateText.matchAll(/\{\{\s*([^{}\s]+)\s*\}\}/g)].map((match) => match[1]))];
     const suppliedVariables = Object.keys(input.contentVariables ?? {});
     if (requiredVariables.some((key) => !input.contentVariables?.[key]?.trim()) || suppliedVariables.some((key) => !requiredVariables.includes(key))) {

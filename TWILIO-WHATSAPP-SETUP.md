@@ -70,16 +70,24 @@ Before deploying, ensure the production host has the correct `DATABASE_URL`, sta
 | Outbound message fails with 63016 | Customer service window is closed; use an approved template. |
 | Outbound message is undelivered | Open the message in Twilio Monitor logs and use its specific error code and detail; do not assume the number is blocked. Check WhatsApp sender approval, recipient format, template state, opt-in, and account balance as applicable. |
 | Status remains queued/sent | Confirm the status callback was supplied/configured and reachable; inspect Twilio webhook logs and CRM webhook health. |
+| Approved template exists in Twilio but is missing from CRM | In the CRM select **Template** (not Reply); confirm the currently selected CRM sender belongs to the same Twilio account that owns the Content SID; confirm production has `/api/twilio/templates` deployed; check browser Network/server logs for `401` (session), `409` (sender credentials), `502` (Twilio Content API/auth/API), or `503` (database/credential store). Twilio's `ContentAndApprovals` response exposes approval state under `approval_requests`; the CRM lookup has been updated locally to read that field and still accepts `approvals.whatsapp` variants. Twilio templates are account-scoped. |
+| Template panel loads but send fails | Confirm the selected template's Content SID begins `HX`, its WhatsApp approval is still `Approved` (not paused/disabled), all variables are filled, the sender is WhatsApp-enabled on the same Twilio account, and inspect the exact Twilio error in Monitor → Logs → Messaging. |
 
 ## Configuration record
 
 - Production base URL: `https://crm.storeshop.biz`
 - Inbound webhook: `POST /api/webhooks/twilio`
 - Status callback: `POST /api/webhooks/twilio/status`
-- Verified in Twilio Console: **Pending** (Console settings could not be inspected in this session)
+- Verified in Twilio Console: **Integration page saved and URLs visible**; sender association and sender-level webhook still pending
 - Live inbound/outbound test: **Pending**
-- Console page observed: **Conversations (classic) → Services → Defaults**. This is not the WhatsApp sender's Programmable Messaging webhook configuration.
-- Last verified: **2026-11-07** (Console page identity observed; webhook settings and public endpoints could not be verified in this session)
+- Console page observed: **Messaging → Default Messaging Service for Conversations → Integration**. **Send a webhook** is selected with the inbound URL set to `https://crm.storeshop.biz/api/webhooks/twilio` using HTTP POST; the delivery status callback is set to `https://crm.storeshop.biz/api/webhooks/twilio/status`. Twilio displayed a successful-save confirmation. The fallback URL is blank.
+- CRM composer observed: customer has recorded opt-in; Reply mode is selected while the customer reply window is closed. The failed free-form message `hello` has Twilio error `63016`; use Template mode and send the approved Content SID rather than retrying the plain text.
+- CRM template lookup observed: the live CRM currently displays **No approved WhatsApp templates found**. The current sender/account mapping and Twilio Content API response still need verification. The application uses the Twilio account attached to the selected sender, so a template in a different Twilio account will not appear.
+- Local code fix: parse `approval_requests.status` from the documented `ContentAndApprovals` response, in addition to the older WhatsApp approval aliases; the live CRM will continue to show the old behavior until the change is deployed.
+- Deployment blocker: SSH to `crm.storeshop.biz` on port 22 timed out during the deployment check. DigitalOcean's dashboard is not signed in in the available browser session. The source change has not been pushed or deployed; production remains unchanged.
+- Sender Pool membership and the WhatsApp sender's individual webhook configuration have not been verified. The Messaging Service Integration URL being correct does not prove that the CRM's sender is attached to that service or that the individual sender uses that service's webhook.
+- Live inbound/outbound delivery remains unverified. The user must send an inbound WhatsApp test to the configured sender, then CRM delivery should be checked against Twilio Monitor logs and **Admin → Webhooks**.
+- Last verified: **2026-11-07** (Messaging Service Integration settings and live CRM composer observed)
 
 ## Official Twilio references
 
