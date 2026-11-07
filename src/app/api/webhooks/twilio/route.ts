@@ -111,7 +111,8 @@ export async function POST(request: NextRequest) {
   try {
     if (!process.env.DATABASE_URL) return NextResponse.json({ error: "CRM database is not configured; incoming messages cannot be stored." }, { status: 503 });
     if (isStatusCallback) {
-      await processTwilioStatusCallback(params);
+      const processed = await processTwilioStatusCallback(params);
+      if (!processed) return NextResponse.json({ error: "Twilio status callback is not correlated to an outbound message yet." }, { status: 503 });
     } else if (isInboundMessage) {
       const inboundAccountTokens = await getTwilioAuthTokensByAccountSid(accountSid);
       if (!inboundAccountTokens.length) return NextResponse.json({ error: "Twilio account is not configured in this workspace." }, { status: 401 });

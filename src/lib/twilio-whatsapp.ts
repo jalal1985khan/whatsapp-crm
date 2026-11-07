@@ -450,7 +450,9 @@ export async function processTwilioStatusCallback(params: Record<string, string>
     undelivered: "FAILED",
   };
   const dbStatus = statusMap[status];
-  if (!dbStatus) return false;
+  // Acknowledge provider lifecycle additions this CRM does not model yet;
+  // retrying those forever cannot produce a valid state transition.
+  if (!dbStatus) return true;
 
   const pool = getPostgresPool();
   let updated = await pool.query<Row>(
