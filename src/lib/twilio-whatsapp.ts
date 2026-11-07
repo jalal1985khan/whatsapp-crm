@@ -125,9 +125,10 @@ export async function sendTwilioTextMessage(input: {
       const row = prior.rows[0];
       await client.query("COMMIT");
       const priorStatus = String(row.status);
-      if (priorStatus === "SENT" || priorStatus === "DELIVERED" || priorStatus === "READ") {
-        return { id: String(row.id), platformMessageId: String(row.platformMessageId || ""), status: priorStatus.toLowerCase(), duplicate: true };
-      }
+      // A request retry with the same idempotency key must never create a
+      // second provider send, even while the first request is pending or has
+      // an uncertain outcome. Explicit retries use a new key.
+      return { id: String(row.id), platformMessageId: String(row.platformMessageId || "") || undefined, status: priorStatus.toLowerCase(), duplicate: true };
     }
 
     // Load contact and conversation
@@ -225,7 +226,11 @@ export async function sendTwilioTextMessage(input: {
   try {
     if (response.ok && data.sid) {
       await updateClient.query(
-        `UPDATE "Message" SET "status" = 'SENT', "platformMessageId" = $2, "sentAt" = CURRENT_TIMESTAMP WHERE "id" = $1`,
+        `UPDATE "Message" SET
+           "status" = CASE WHEN "status" IN ('DELIVERED','READ','FAILED') THEN "status" ELSE 'SENT'::"MessageStatus" END,
+           "platformMessageId" = $2,
+           "sentAt" = COALESCE("sentAt", CURRENT_TIMESTAMP)
+         WHERE "id" = $1`,
         [messageId, data.sid],
       );
       return { id: messageId, platformMessageId: data.sid, status: "sent", duplicate: false };
@@ -433,28 +438,91 @@ export async function processTwilioStatusCallback(params: Record<string, string>
 
   if (!messageSid || !status) return false;
 
-  let dbStatus = "SENT";
-  if (status === "delivered") dbStatus = "DELIVERED";
-  else if (status === "read") dbStatus = "READ";
-  else if (status === "failed" || status === "undelivered") dbStatus = "FAILED";
-  else if (status === "queued" || status === "sending") dbStatus = "QUEUED";
+  const statusMap: Record<string, string> = {
+    accepted: "QUEUED",
+    scheduled: "QUEUED",
+    queued: "QUEUED",
+    sending: "SENDING",
+    sent: "SENT",
+    delivered: "DELIVERED",
+    read: "READ",
+    failed: "FAILED",
+    undelivered: "FAILED",
+  };
+  const dbStatus = statusMap[status];
+  if (!dbStatus) return false;
 
   const pool = getPostgresPool();
-  await pool.query(
+  let updated = await pool.query<Row>(
     `UPDATE "Message"
-     SET "status" = $2::"MessageStatus",
-         "failureCode" = COALESCE($3, "failureCode"),
-         "deliveredAt" = CASE WHEN $2 = 'DELIVERED' AND "deliveredAt" IS NULL THEN CURRENT_TIMESTAMP ELSE "deliveredAt" END,
-         "readAt" = CASE WHEN $2 = 'READ' AND "readAt" IS NULL THEN CURRENT_TIMESTAMP ELSE "readAt" END
-     WHERE "platformMessageId" = $1`,
+     SET "status" = CASE
+           WHEN "status" IN ('READ','FAILED') THEN "status"
+           WHEN CASE "status" WHEN 'QUEUED' THEN 0 WHEN 'SENDING' THEN 1 WHEN 'SENT' THEN 2 WHEN 'DELIVERED' THEN 3 ELSE 0 END
+             > CASE $2::"MessageStatus" WHEN 'QUEUED' THEN 0 WHEN 'SENDING' THEN 1 WHEN 'SENT' THEN 2 WHEN 'DELIVERED' THEN 3 WHEN 'READ' THEN 4 WHEN 'FAILED' THEN 5 ELSE 0 END
+             THEN "status"
+           ELSE $2::"MessageStatus"
+         END,
+         "failureCode" = CASE WHEN $2 IN ('SENT','DELIVERED','READ') THEN NULL ELSE COALESCE($3,"failureCode") END,
+         "sentAt" = CASE WHEN $2 IN ('SENT','DELIVERED','READ') THEN COALESCE("sentAt",CURRENT_TIMESTAMP) ELSE "sentAt" END,
+         "deliveredAt" = CASE WHEN $2 IN ('DELIVERED','READ') THEN COALESCE("deliveredAt",CURRENT_TIMESTAMP) ELSE "deliveredAt" END,
+         "readAt" = CASE WHEN $2 = 'READ' THEN COALESCE("readAt",CURRENT_TIMESTAMP) ELSE "readAt" END
+     WHERE "platformMessageId" = $1 AND "direction"='OUTBOUND'
+     RETURNING "id","workspaceId","channelNumberId"`,
     [messageSid, dbStatus, providerError],
   );
+
+  // A very fast status callback can beat the REST response that stores the
+  // provider SID. Match only one recent pending send by its exact sender and
+  // recipient; leave ambiguous callbacks untouched rather than misattributing.
+  if (!updated.rows.length && params.From && params.To) {
+    const fromE164 = normalizeWhatsAppE164(params.From);
+    const toE164 = normalizeWhatsAppE164(params.To);
+    if (fromE164 && toE164) {
+      const workspaceId = getWorkspaceId();
+      const candidates = await pool.query<Row>(
+        `SELECT m."id" FROM "Message" m
+         JOIN "ChannelNumber" n ON n."id"=m."channelNumberId" AND n."workspaceId"=m."workspaceId"
+         JOIN "Contact" c ON c."id"=m."contactId" AND c."workspaceId"=m."workspaceId"
+         WHERE m."workspaceId"=$1 AND m."direction"='OUTBOUND' AND m."platformMessageId" IS NULL
+           AND m."status" IN ('QUEUED','SENDING','UNKNOWN')
+           AND regexp_replace(n."e164Number",'\\D','','g')=regexp_replace($2,'\\D','','g')
+           AND (regexp_replace(c."primaryPhone",'\\D','','g')=regexp_replace($3,'\\D','','g') OR EXISTS (
+             SELECT 1 FROM "ContactIdentifier" ci WHERE ci."workspaceId"=m."workspaceId" AND ci."contactId"=c."id" AND ci."type"='PHONE'
+               AND regexp_replace(ci."normalizedValue",'\\D','','g')=regexp_replace($3,'\\D','','g')
+           ))
+           AND m."createdAt">=CURRENT_TIMESTAMP-INTERVAL '15 minutes'
+         ORDER BY m."createdAt" DESC LIMIT 2`,
+        [workspaceId, fromE164, toE164],
+      );
+      if (candidates.rows.length === 1) {
+        updated = await pool.query<Row>(
+          `UPDATE "Message" SET "platformMessageId"=$2 WHERE "id"=$1 AND "platformMessageId" IS NULL RETURNING "id","workspaceId","channelNumberId"`,
+          [String(candidates.rows[0].id), messageSid],
+        );
+        if (updated.rows[0]) {
+          await pool.query(
+            `UPDATE "Message" SET
+               "status" = CASE WHEN "status" IN ('READ','FAILED') THEN "status"
+                 WHEN CASE "status" WHEN 'QUEUED' THEN 0 WHEN 'SENDING' THEN 1 WHEN 'SENT' THEN 2 WHEN 'DELIVERED' THEN 3 ELSE 0 END
+                   > CASE $2::"MessageStatus" WHEN 'QUEUED' THEN 0 WHEN 'SENDING' THEN 1 WHEN 'SENT' THEN 2 WHEN 'DELIVERED' THEN 3 WHEN 'READ' THEN 4 WHEN 'FAILED' THEN 5 ELSE 0 END
+                   THEN "status" ELSE $2::"MessageStatus" END,
+               "failureCode" = CASE WHEN $2 IN ('SENT','DELIVERED','READ') THEN NULL ELSE COALESCE($3,"failureCode") END,
+               "sentAt" = CASE WHEN $2 IN ('SENT','DELIVERED','READ') THEN COALESCE("sentAt",CURRENT_TIMESTAMP) ELSE "sentAt" END,
+               "deliveredAt" = CASE WHEN $2 IN ('DELIVERED','READ') THEN COALESCE("deliveredAt",CURRENT_TIMESTAMP) ELSE "deliveredAt" END,
+               "readAt" = CASE WHEN $2 = 'READ' THEN COALESCE("readAt",CURRENT_TIMESTAMP) ELSE "readAt" END WHERE "platformMessageId"=$1`,
+            [messageSid, dbStatus, providerError],
+          );
+        }
+      }
+    }
+  }
+  if (!updated.rows.length) return false;
 
   // If status is failed/undelivered due to channel block, auto-failover the sender number
   if ((status === "failed" || status === "undelivered") && errorCode && [63007, 63013, 63032, 21211, 21610, 21614].includes(Number(errorCode))) {
     try {
       const msgRes = await pool.query<Row>(
-        `SELECT "channelNumberId", "workspaceId" FROM "Message" WHERE "platformMessageId" = $1 LIMIT 1`,
+        `SELECT "channelNumberId", "workspaceId" FROM "Message" WHERE "platformMessageId" = $1 AND "direction"='OUTBOUND' LIMIT 1`,
         [messageSid],
       );
       if (msgRes.rows[0]) {
