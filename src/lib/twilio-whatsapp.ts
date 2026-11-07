@@ -304,6 +304,9 @@ export async function processTwilioInboundMessage(params: Record<string, string>
       return { conversationId: String(duplicate.rows[0].conversationId), messageId: String(duplicate.rows[0].id) };
     }
 
+    // A repeated Twilio delivery must not increment unreadCount or extend the
+    // customer service window. Reserve the provider SID before touching the
+    // conversation so concurrent webhook retries remain idempotent as well.
     let numberRow = (
       await client.query<Row>(
         `SELECT "id", "workspaceId" FROM "ChannelNumber" WHERE "workspaceId" = $1 AND "provider" = 'TWILIO' AND "e164Number" = $2 LIMIT 1`,
@@ -377,30 +380,38 @@ export async function processTwilioInboundMessage(params: Record<string, string>
     // 3. Find or Create Conversation
     const convResult = await client.query<Row>(
       `INSERT INTO "Conversation" ("id", "workspaceId", "contactId", "channelNumberId", "state", "unreadCount", "lastMessageAt", "serviceWindowExpiresAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, 'OPEN', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP)
+       VALUES ($1, $2, $3, $4, 'OPEN', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '24 hours', CURRENT_TIMESTAMP)
        ON CONFLICT ("contactId", "channelNumberId")
-       DO UPDATE SET "unreadCount" = "Conversation"."unreadCount" + 1, "lastMessageAt" = CURRENT_TIMESTAMP, "serviceWindowExpiresAt" = CURRENT_TIMESTAMP + INTERVAL '24 hours', "state" = 'OPEN', "updatedAt" = CURRENT_TIMESTAMP
+       DO UPDATE SET "id" = "Conversation"."id"
        RETURNING "id"`,
       [randomUUID(), workspaceId, contactId, channelNumberId],
     );
     const conversationId = String(convResult.rows[0].id);
 
+    const reservation = await client.query<Row>(
+      `INSERT INTO "Message" ("id", "workspaceId", "conversationId", "contactId", "channelNumberId", "direction", "status", "messageType", "textBody", "platformMessageId", "receivedAt", "createdAt")
+       VALUES ($1, $2, $3, $4, $5, 'INBOUND', 'SENT', 'text', $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT ("platformMessageId") DO NOTHING
+       RETURNING "id"`,
+      [randomUUID(), workspaceId, conversationId, contactId, channelNumberId, body || (mediaUrl0 ? "[Attachment]" : ""), messageSid],
+    );
+    if (!reservation.rows[0]) {
+      await client.query("COMMIT");
+      const existing = await client.query<Row>(`SELECT "id", "conversationId" FROM "Message" WHERE "platformMessageId"=$1 LIMIT 1`, [messageSid]);
+      return { conversationId: String(existing.rows[0]?.conversationId ?? conversationId), messageId: String(existing.rows[0]?.id ?? "") };
+    }
+    await client.query(`UPDATE "Conversation" SET "unreadCount"="unreadCount"+1,"lastMessageAt"=CURRENT_TIMESTAMP,"serviceWindowExpiresAt"=CURRENT_TIMESTAMP+INTERVAL '24 hours',"state"='OPEN',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1`, [conversationId]);
+
     // 4. Insert Inbound Message (Idempotent by platformMessageId)
     const mediaPayload = mediaUrl0 ? JSON.stringify({ mediaUrl: mediaUrl0, contentType: params.MediaContentType0 || "media" }) : null;
     const msgType = mediaUrl0 ? (params.MediaContentType0?.startsWith("image/") ? "image" : "document") : "text";
 
-    const insertMsg = await client.query<Row>(
-      `INSERT INTO "Message" ("id", "workspaceId", "conversationId", "contactId", "channelNumberId", "direction", "status", "messageType", "textBody", "media", "platformMessageId", "receivedAt", "createdAt")
-       VALUES ($1, $2, $3, $4, $5, 'INBOUND', 'SENT', $6, $7, $8::jsonb, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       ON CONFLICT ("platformMessageId") DO NOTHING
-       RETURNING "id"`,
-      [randomUUID(), workspaceId, conversationId, contactId, channelNumberId, msgType, body || (mediaUrl0 ? "[Attachment]" : ""), mediaPayload, messageSid],
-    );
+    await client.query(`UPDATE "Message" SET "messageType"=$2,"textBody"=$3,"media"=$4::jsonb WHERE "id"=$1`, [String(reservation.rows[0].id), msgType, body || (mediaUrl0 ? "[Attachment]" : ""), mediaPayload]);
 
     await client.query("COMMIT");
     return {
       conversationId,
-      messageId: insertMsg.rows[0] ? String(insertMsg.rows[0].id) : "",
+      messageId: String(reservation.rows[0].id),
     };
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch {}
