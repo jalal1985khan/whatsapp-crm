@@ -317,6 +317,7 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
     color: string; unreadCount: number; state: string; assignedTo: string | null; assignedUserId: string | null; assignedTeamId: string | null;
     assignedTeam: string | null; conversationAssignments: { channelNumberId: string; assignedTeamId?: string; assignedUserId?: string; state?: string; unreadCount?: number; serviceWindowExpiresAt?: string | null }[];
     channelNumberIds: string[]; currentSenderNumberId: string | null; latestMessageSenderNumberId: string | null;
+    latestInboundMessageId: string | null; latestInboundMessageAt: Date | string | null;
     messageCount: number; hasFailed: boolean; unansweredSince: Date | string | null; tags: string[]; label: string | null; matchesFilter: boolean;
   }>(
     `WITH visible_conversations AS (
@@ -336,6 +337,7 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
          COALESCE(conversationStats."conversationAssignments",'[]'::jsonb) AS "conversationAssignments",
          COALESCE(conversationStats."channelNumberIds",ARRAY[]::text[]) AS "channelNumberIds",
          latestConversation."channelNumberId" AS "currentSenderNumberId",latestMessage."channelNumberId" AS "latestMessageSenderNumberId",
+         latestInbound."id" AS "latestInboundMessageId",latestInbound."createdAt" AS "latestInboundMessageAt",
          COALESCE(failureStats."hasFailed",FALSE) AS "hasFailed",contact."tags",
          queueStats."unansweredSince",
          (SELECT string_agg(number."label"||' '||number."e164Number",' ') FROM "ChannelNumber" number WHERE number."workspaceId"=$1 AND number."id"=ANY(COALESCE(conversationStats."channelNumberIds",ARRAY[]::text[]))) AS "numberText"
@@ -357,6 +359,12 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
            AND (${messageScopeClause})
          ORDER BY message."createdAt" DESC,message."id" DESC LIMIT 1
        ) latestMessage ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT message."id",message."createdAt" FROM "Message" message
+         WHERE message."workspaceId"=$1 AND message."contactId"=contact."id" AND message."direction"='INBOUND'
+           AND (${messageScopeClause})
+         ORDER BY message."createdAt" DESC,message."id" DESC LIMIT 1
+       ) latestInbound ON TRUE
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS "messageCount" FROM "Message" message WHERE message."workspaceId"=$1 AND message."contactId"=contact."id" AND message."direction"<>'INTERNAL'
            AND (${messageScopeClause})
@@ -394,6 +402,7 @@ export async function getScopedInboxListSnapshot(actor: InboxActor, filters: Inb
       unread: Number(row.unreadCount) || undefined, state: status, assignedTo: row.assignedTo ?? undefined, assignedUserId: row.assignedUserId ?? undefined,
       assignedTeamId: row.assignedTeamId ?? undefined, assignedTeam: row.assignedTeam ?? undefined, conversationAssignments: (row.conversationAssignments ?? []).map((thread) => ({ ...thread, state: thread.state === "WAITING" ? "Waiting" as const : thread.state === "RESOLVED" ? "Resolved" as const : "Open" as const, unreadCount: Number(thread.unreadCount ?? 0) })),
       channelNumberIds: row.channelNumberIds ?? [], currentSenderNumberId: row.currentSenderNumberId ?? undefined, latestMessageSenderNumberId: row.latestMessageSenderNumberId ?? undefined,
+      latestInboundMessageId: row.latestInboundMessageId ?? undefined, latestInboundMessageAt: row.latestInboundMessageAt ? new Date(row.latestInboundMessageAt).toISOString() : undefined,
       messageCount: Number(row.messageCount), hasFailed: row.hasFailed, unansweredSince: row.unansweredSince ? new Date(row.unansweredSince).toISOString() : undefined,
       tags, label: tags[0], matchesFilter: row.matchesFilter, messages: [] as never[],
     };

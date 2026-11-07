@@ -60,6 +60,8 @@ type Chat = {
   eligibleSenderNumberIds?: string[];
   currentSenderNumberId?: string;
   latestMessageSenderNumberId?: string;
+  latestInboundMessageId?: string;
+  latestInboundMessageAt?: string;
   detailLoaded?: boolean;
   matchesFilter?: boolean;
   messageCount?: number;
@@ -100,7 +102,7 @@ function InboxMessageRow({ chat, message, index, senderNumbers, canRetry, canPur
   const requiresTemplate = /^63016(?:\b|:)/.test(message.failureCode ?? "");
   return (
     <MessageScrollerItem id={message.id ? `crm-message-${message.id}` : undefined} messageId={messageId} scrollAnchor={!message.mine}>
-      <div className={`flex w-full mb-3 ${message.mine ? "justify-end" : "justify-start"}`}>
+      <div data-chat-message={chat.id} data-latest-inbound={!message.mine && message.id === chat.latestInboundMessageId ? "true" : undefined} className={`flex w-full mb-3 ${message.mine ? "justify-end" : "justify-start"}`}>
         <div
           className={cn(
             "relative max-w-[85%] sm:max-w-[70%] md:max-w-[65%] rounded-2xl px-4 py-2.5 text-sm shadow-xs leading-relaxed",
@@ -231,6 +233,25 @@ function IconButton({ label, children, className = "", onClick }: { label: strin
 }
 
 type AdminAlert = { id: string; severity: "INFO" | "WARNING" | "CRITICAL"; category: string; title: string; message: string; targetType: string | null; targetId: string | null; createdAt: string; readAt: string | null };
+type InboxNotification = { id: string; chatId: string; name: string; preview: string; time: string };
+
+function InboxNotificationToast({ notification, onOpen, onDismiss }: { notification: InboxNotification; onOpen: () => void; onDismiss: () => void }) {
+  return (
+    <Card className="overflow-hidden border-primary/20 bg-card shadow-xl ring-1 ring-border/60">
+      <div className="flex items-start">
+        <button type="button" onClick={onOpen} aria-label={`Open new message from ${notification.name}`} className="flex min-w-0 flex-1 items-start gap-3 p-3.5 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+          <span className="relative mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><MessageCircle className="size-4" /><span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-primary ring-2 ring-card" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center justify-between gap-3"><span className="truncate text-sm font-semibold">New message · {notification.name}</span><span className="shrink-0 text-[11px] text-muted-foreground">{notification.time}</span></span>
+            <span className="mt-1 block truncate text-xs text-muted-foreground">{notification.preview}</span>
+            <span className="mt-2 block text-[11px] font-medium text-primary">Click to open conversation <span aria-hidden="true">→</span></span>
+          </span>
+        </button>
+        <Button type="button" variant="ghost" size="icon" aria-label="Dismiss new message notification" onClick={onDismiss} className="mr-1 mt-1 size-7 shrink-0 text-muted-foreground"><X className="size-3.5" /></Button>
+      </div>
+    </Card>
+  );
+}
 
 export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { user: { id: string; name: string; email: string; role: string }; cannedReplies?: CannedReply[]; initialNumbers?: SenderNumber[] }) {
   const router = useRouter();
@@ -296,6 +317,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   const [alertsOpen, setAlertsOpen] = useState(false);
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [alertCount, setAlertCount] = useState(0);
+  const [inboxNotification, setInboxNotification] = useState<InboxNotification | null>(null);
+  const previousUnreadRef = useRef<Map<string, number> | null>(null);
+  const notificationTimeoutRef = useRef<number | null>(null);
   const sendKeys = useRef(new Map<string, string>());
   const attachmentInput = useRef<HTMLInputElement>(null);
   const draftInputRef = useRef<HTMLTextAreaElement>(null);
@@ -343,7 +367,7 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "center" });
     pendingMessageJumpId.current = "";
-  }, [viewedThreadMessages]);
+  }, [activeId, viewedThreadMessages]);
   const senderNumbersForChat = useMemo(() => eligibleSenders(activeChat, senderNumbers), [senderNumbers, activeChat]);
   const currentThreadNumberId = activeChat?.currentSenderNumberId ?? [...(activeChat?.messages ?? [])].reverse().find((message) => message.senderNumberId)?.senderNumberId;
   const agentAssignedNumber = senderNumbersForChat.find((number) => number.assignedUserId === user.id && number.state === "Active")
@@ -382,6 +406,10 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
   }, [chats]);
   const visibleChats = useMemo(() => chats.filter((chat) => chat.matchesFilter !== false), [chats]);
   const unreadCount = chats.reduce((sum, chat) => sum + (chat.unread ? 1 : 0), 0);
+
+  useEffect(() => () => {
+    if (notificationTimeoutRef.current !== null) window.clearTimeout(notificationTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -582,6 +610,34 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
     const loadedChats: Chat[] = Array.isArray(data.chats) ? data.chats : [];
     const allNumbers: SenderNumber[] = Array.isArray(data.numbers) ? data.numbers : [];
     const requestedContact = new URLSearchParams(window.location.search).get("contact");
+    const previousUnread = previousUnreadRef.current;
+    if (previousUnread) {
+      const newlyUnread = loadedChats
+        .filter((chat) => chat.id !== activeIdRef.current && (chat.unread ?? 0) > (previousUnread.get(chat.id) ?? 0))
+        .sort((a, b) => new Date(b.latestInboundMessageAt ?? b.updatedAt ?? 0).getTime() - new Date(a.latestInboundMessageAt ?? a.updatedAt ?? 0).getTime())[0];
+      if (newlyUnread) {
+        const item: InboxNotification = {
+          id: `${newlyUnread.id}:${newlyUnread.updatedAt ?? newlyUnread.time}:${newlyUnread.unread}`,
+          chatId: newlyUnread.id,
+          name: newlyUnread.name,
+          preview: newlyUnread.preview || "New WhatsApp message",
+          time: newlyUnread.time,
+        };
+        setInboxNotification(item);
+        if (notificationTimeoutRef.current !== null) window.clearTimeout(notificationTimeoutRef.current);
+        notificationTimeoutRef.current = window.setTimeout(() => setInboxNotification(null), 9000);
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted" && document.visibilityState === "hidden") {
+          const notification = new Notification(`New message from ${item.name}`, { body: item.preview || "Open the CRM to view the message.", tag: `crm-inbox-${item.chatId}` });
+          notification.onclick = () => {
+            window.focus();
+            setInboxNotification(item);
+            window.setTimeout(() => openChat(newlyUnread), 0);
+            notification.close();
+          };
+        }
+      }
+    }
+    previousUnreadRef.current = new Map(loadedChats.map((chat) => [chat.id, chat.unread ?? 0]));
     const currentStillVisible = loadedChats.some((chat) => chat.id === activeIdRef.current);
     const selectedId = currentStillVisible ? activeIdRef.current : loadedChats.find((chat) => chat.id === requestedContact)?.id || loadedChats[0]?.id || "";
     setChats((current) => loadedChats.map((summary) => {
@@ -606,6 +662,9 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
     const eligibleForChat = eligibleSenders(chat, senderNumbers);
     const channel = eligibleForChat.find((number) => number.id === channelId && number.state === "Active");
     setActiveNumberId((channel ?? eligibleForChat[0])?.id ?? null);
+    const latestInboundId = [...chat.messages].reverse().find((message) => !message.mine && message.id)?.id;
+    const latestInboundMessageId = latestInboundId ?? chat.latestInboundMessageId;
+    if (latestInboundMessageId) pendingMessageJumpId.current = latestInboundMessageId;
     if (!chat.detailLoaded) void refreshChatDetail(chat.id);
     const selectedUnread = chat.conversationAssignments?.find((thread) => thread.channelNumberId === selectedThreadId)?.unreadCount ?? chat.unread;
     if (selectedUnread && selectedThreadId) void updateConversation(chat.id, "read", undefined, undefined, undefined, selectedThreadId);
@@ -815,6 +874,23 @@ export function InboxApp({ user, cannedReplies = [], initialNumbers = [] }: { us
 
   return (
     <main className="flex h-screen min-h-[600px] overflow-hidden bg-muted/40 text-foreground font-sans flex-col p-2 sm:p-3">
+      {inboxNotification && (
+        <div className="fixed right-4 top-4 z-[100] w-[min(380px,calc(100vw-2rem))] animate-in fade-in slide-in-from-top-2 duration-200" role="status" aria-live="polite">
+          <InboxNotificationToast
+            notification={inboxNotification}
+            onDismiss={() => {
+              setInboxNotification(null);
+              if (notificationTimeoutRef.current !== null) window.clearTimeout(notificationTimeoutRef.current);
+            }}
+            onOpen={() => {
+              const chat = chats.find((item) => item.id === inboxNotification.chatId);
+              setInboxNotification(null);
+              if (notificationTimeoutRef.current !== null) window.clearTimeout(notificationTimeoutRef.current);
+              if (chat) openChat(chat);
+            }}
+          />
+        </div>
+      )}
       {notice && (
         <div className="border-b border-border bg-card p-2 px-4 shrink-0 z-50">
           <Alert variant="destructive" className="flex items-center justify-between py-2 border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
