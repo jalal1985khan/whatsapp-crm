@@ -99,8 +99,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const isInboundMessage = Boolean(params.From && params.To && (params.MessageSid || params.SmsMessageSid));
-  const isStatusCallback = !isInboundMessage && Boolean(params.MessageStatus || params.SmsStatus);
+  // Both inbound webhooks and outbound status callbacks can include From, To,
+  // and MessageSid. Inbound webhooks may also carry MessageStatus/SmsStatus
+  // with the value "received"; only the outbound lifecycle values are status
+  // callbacks for our CRM message record.
+  const messageStatus = (params.MessageStatus || params.SmsStatus || "").toLowerCase();
+  const hasMessageIdentity = Boolean(params.From && params.To && (params.MessageSid || params.SmsMessageSid));
+  const isInboundMessage = hasMessageIdentity && (!messageStatus || messageStatus === "received" || messageStatus === "receiving");
+  const isStatusCallback = Boolean(messageStatus) && !isInboundMessage;
 
   try {
     if (!process.env.DATABASE_URL) return NextResponse.json({ error: "CRM database is not configured; incoming messages cannot be stored." }, { status: 503 });
